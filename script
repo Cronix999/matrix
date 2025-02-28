@@ -1,670 +1,714 @@
--- MatrixHub-Style Evade.cc - Enhanced PvP Script (UNC Compatible)
+--// Evade.cc - Optimized PvP Script
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local HRP = Character:WaitForChild("HumanoidRootPart")
-local Camera = workspace.CurrentCamera
-
--- Make sure we update character references when character respawns
-LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
-    Character = NewCharacter
-    Humanoid = Character:WaitForChild("Humanoid")
-    HRP = Character:WaitForChild("HumanoidRootPart")
-end)
-
--- Check for UNC executor limitations
-local UNCSupport = {
-    DrawingLibrary = (Drawing ~= nil),
-    TweenService = pcall(function() return game:GetService("TweenService") end)
-}
-
--- Simple UI framework for UNC executors
-local SimpleUI = {}
-SimpleUI.__index = SimpleUI
-
-function SimpleUI.new(title)
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "MatrixEvadeCC"
-    gui.ResetOnSpawn = false
-    
-    -- Make GUI visible in lower level executors
-    if syn then
-        syn.protect_gui(gui)
-        gui.Parent = game:GetService("CoreGui")
-    elseif gethui then
-        gui.Parent = gethui()
-    elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
-        gui.Parent = game:GetService("CoreGui").RobloxGui
-    else
-        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-
-    local main = Instance.new("Frame")
-    main.Name = "MainFrame"
-    main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    main.BorderColor3 = Color3.fromRGB(0, 180, 255)
-    main.BorderSizePixel = 1
-    main.Position = UDim2.new(0.5, -175, 0.5, -150)
-    main.Size = UDim2.new(0, 350, 0, 300)
-    main.Active = true
-    main.Draggable = true -- Make window draggable for UNC
-    main.Parent = gui
-
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 23)
-    titleBar.BorderSizePixel = 0
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
-    titleBar.Parent = main
-
-    local titleText = Instance.new("TextLabel")
-    titleText.Name = "Title"
-    titleText.BackgroundTransparency = 1
-    titleText.Position = UDim2.new(0, 10, 0, 0)
-    titleText.Size = UDim2.new(1, -20, 1, 0)
-    titleText.Font = Enum.Font.SourceSansBold
-    titleText.Text = title
-    titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleText.TextSize = 16
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-
-    -- Simple Tab System
-    local tabContainer = Instance.new("Frame")
-    tabContainer.Name = "TabContainer"
-    tabContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    tabContainer.BorderSizePixel = 0
-    tabContainer.Position = UDim2.new(0, 0, 0, 30)
-    tabContainer.Size = UDim2.new(1, 0, 0, 30)
-    tabContainer.Parent = main
-
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Name = "ContentFrame"
-    contentFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    contentFrame.BorderSizePixel = 0
-    contentFrame.Position = UDim2.new(0, 0, 0, 60)
-    contentFrame.Size = UDim2.new(1, 0, 1, -60)
-    contentFrame.Parent = main
-
-    local self = setmetatable({
-        GUI = gui,
-        Main = main,
-        ContentFrame = contentFrame,
-        TabButtons = {},
-        TabFrames = {},
-        CurrentTab = nil,
-        TabContainer = tabContainer
-    }, SimpleUI)
-
-    return self
-end
-
-function SimpleUI:AddTab(name)
-    local tabCount = #self.TabContainer:GetChildren() - 1
-    local tabWidth = 1 / (tabCount + 1)
-    
-    -- Resize existing tabs
-    for _, button in pairs(self.TabButtons) do
-        button.Size = UDim2.new(tabWidth, 0, 1, 0)
-        -- Reposition buttons
-        local index = button:FindFirstChild("Index").Value
-        button.Position = UDim2.new(tabWidth * (index - 1), 0, 0, 0)
-    end
-    
-    local tabButton = Instance.new("TextButton")
-    tabButton.Name = name .. "Button"
-    tabButton.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    tabButton.BorderSizePixel = 0
-    tabButton.Position = UDim2.new(tabWidth * tabCount, 0, 0, 0)
-    tabButton.Size = UDim2.new(tabWidth, 0, 1, 0)
-    tabButton.Font = Enum.Font.SourceSans
-    tabButton.Text = name
-    tabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    tabButton.TextSize = 14
-    tabButton.Parent = self.TabContainer
-    
-    -- Store index for repositioning
-    local index = Instance.new("IntValue")
-    index.Name = "Index"
-    index.Value = tabCount + 1
-    index.Parent = tabButton
-    
-    local tabFrame = Instance.new("ScrollingFrame")
-    tabFrame.Name = name .. "Frame"
-    tabFrame.BackgroundTransparency = 1
-    tabFrame.BorderSizePixel = 0
-    tabFrame.Size = UDim2.new(1, 0, 1, 0)
-    tabFrame.CanvasSize = UDim2.new(0, 0, 3, 0)
-    tabFrame.ScrollBarThickness = 4
-    tabFrame.Visible = (self.CurrentTab == nil)
-    tabFrame.Parent = self.ContentFrame
-    
-    -- Select this tab if it's the first one
-    if self.CurrentTab == nil then
-        self.CurrentTab = name
-        tabButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end
-    
-    tabButton.MouseButton1Click:Connect(function()
-        self:SelectTab(name)
-    end)
-    
-    self.TabButtons[name] = tabButton
-    self.TabFrames[name] = tabFrame
-    
-    return tabFrame
-end
-
-function SimpleUI:SelectTab(name)
-    if self.CurrentTab == name then return end
-    
-    -- Hide all tab frames and reset button colors
-    for tabName, frame in pairs(self.TabFrames) do
-        frame.Visible = (tabName == name)
-        self.TabButtons[tabName].BackgroundColor3 = (tabName == name) and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(20, 20, 25)
-        self.TabButtons[tabName].TextColor3 = (tabName == name) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-    end
-    
-    self.CurrentTab = name
-end
-
-function SimpleUI:AddToggle(tab, name, default, callback)
-    local container = Instance.new("Frame")
-    container.Name = name .. "Container"
-    container.BackgroundTransparency = 1
-    container.Size = UDim2.new(1, -20, 0, 30)
-    
-    local y = #self.TabFrames[tab]:GetChildren() * 35
-    container.Position = UDim2.new(0, 10, 0, y)
-    container.Parent = self.TabFrames[tab]
-    
-    local label = Instance.new("TextLabel")
-    label.Name = "Label"
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.new(0.7, 0, 1, 0)
-    label.Font = Enum.Font.SourceSans
-    label.Text = name
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    
-    local toggle = Instance.new("Frame")
-    toggle.Name = "Toggle"
-    toggle.BackgroundColor3 = default and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
-    toggle.BorderSizePixel = 0
-    toggle.Position = UDim2.new(1, -40, 0.5, -10)
-    toggle.Size = UDim2.new(0, 40, 0, 20)
-    toggle.Parent = container
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = toggle
-    
-    local indicator = Instance.new("Frame")
-    indicator.Name = "Indicator"
-    indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    indicator.Position = default and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
-    indicator.Size = UDim2.new(0, 16, 0, 16)
-    indicator.BorderSizePixel = 0
-    indicator.Parent = toggle
-    
-    local indicatorCorner = Instance.new("UICorner")
-    indicatorCorner.CornerRadius = UDim.new(1, 0)
-    indicatorCorner.Parent = indicator
-    
-    local button = Instance.new("TextButton")
-    button.Name = "Button"
-    button.BackgroundTransparency = 1
-    button.Size = UDim2.new(1, 0, 1, 0)
-    button.Text = ""
-    button.Parent = container
-    
-    local value = default
-    button.MouseButton1Click:Connect(function()
-        value = not value
-        
-        if UNCSupport.TweenService then
-            local tween = game:GetService("TweenService"):Create(
-                indicator, 
-                TweenInfo.new(0.2), 
-                {Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)}
-            )
-            tween:Play()
-        else
-            indicator.Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
-        end
-        
-        toggle.BackgroundColor3 = value and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
-        callback(value)
-    end)
-    
-    -- Return function to update state
-    return function(newValue)
-        value = newValue
-        indicator.Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
-        toggle.BackgroundColor3 = value and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
-    end
-end
-
-function SimpleUI:AddSlider(tab, name, min, max, default, callback)
-    local container = Instance.new("Frame")
-    container.Name = name .. "Container"
-    container.BackgroundTransparency = 1
-    container.Size = UDim2.new(1, -20, 0, 40)
-    
-    local y = #self.TabFrames[tab]:GetChildren() * 45
-    container.Position = UDim2.new(0, 10, 0, y)
-    container.Parent = self.TabFrames[tab]
-    
-    local label = Instance.new("TextLabel")
-    label.Name = "Label"
-    label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.Size = UDim2.new(0.5, 0, 0, 20)
-    label.Font = Enum.Font.SourceSans
-    label.Text = name
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Name = "Value"
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
-    valueLabel.Size = UDim2.new(0.5, 0, 0, 20)
-    valueLabel.Font = Enum.Font.SourceSans
-    valueLabel.Text = tostring(default)
-    valueLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
-    valueLabel.TextSize = 14
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    valueLabel.Parent = container
-    
-    local sliderBG = Instance.new("Frame")
-    sliderBG.Name = "SliderBG"
-    sliderBG.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    sliderBG.BorderSizePixel = 0
-    sliderBG.Position = UDim2.new(0, 0, 0, 25)
-    sliderBG.Size = UDim2.new(1, 0, 0, 6)
-    sliderBG.Parent = container
-    
-    local sliderCorner = Instance.new("UICorner")
-    sliderCorner.CornerRadius = UDim.new(1, 0)
-    sliderCorner.Parent = sliderBG
-    
-    -- Calculate initial fill percentage
-    local percent = (default - min) / (max - min)
-    
-    local sliderFill = Instance.new("Frame")
-    sliderFill.Name = "SliderFill"
-    sliderFill.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-    sliderFill.BorderSizePixel = 0
-    sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    sliderFill.Parent = sliderBG
-    
-    local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(1, 0)
-    fillCorner.Parent = sliderFill
-    
-    local sliderButton = Instance.new("TextButton")
-    sliderButton.Name = "SliderButton"
-    sliderButton.BackgroundTransparency = 1
-    sliderButton.Position = UDim2.new(0, 0, 0, -5)
-    sliderButton.Size = UDim2.new(1, 0, 0, 16)
-    sliderButton.Text = ""
-    sliderButton.Parent = sliderBG
-    
-    -- Current value
-    local value = default
-    
-    -- Update function
-    local function updateSlider(input)
-        local relX = math.clamp((input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X, 0, 1)
-        local newValue = min + (max - min) * relX
-        newValue = math.floor(newValue * 10) / 10 -- Round to 1 decimal
-        
-        value = newValue
-        percent = (value - min) / (max - min)
-        
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-        valueLabel.Text = tostring(value)
-        callback(value)
-    end
-    
-    -- Slider input handling
-    local dragging = false
-    
-    sliderButton.MouseButton1Down:Connect(function(input)
-        dragging = true
-        updateSlider(input)
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            updateSlider(input)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    
-    -- Return function to update value
-    return function(newValue)
-        value = newValue
-        percent = (value - min) / (max - min)
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-        valueLabel.Text = tostring(value)
-    end
-end
+local Camera = game.Workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+local Drawing = Drawing or nil
 
 -- Feature configuration
 local Config = {
     Aimbot = {
         Enabled = false,
-        Key = Enum.UserInputType.MouseButton2,
+        Key = "MouseButton2",
         KeyMode = "Hold",
         HitPart = "Head",
         Team = false,
         Wall = false,
-        FOVSize = 100,
-        ShowFOV = true,
-        FOVColor = Color3.fromRGB(255, 255, 255)
+        Prediction = {
+            Enabled = true,
+            Value = 0.165
+        }
     },
-    ESP = {
+    SilentAim = {
         Enabled = false,
-        BoxEnabled = false,
-        BoxColor = Color3.fromRGB(255, 0, 0),
-        NameEnabled = false,
-        NameColor = Color3.fromRGB(255, 255, 255),
-        DistanceEnabled = false,
-        DistanceColor = Color3.fromRGB(255, 255, 255),
-        TracerEnabled = false,
-        TracerColor = Color3.fromRGB(255, 0, 0),
-        TeamColor = false,
-        TeamCheck = false
+        HitChance = 100
     },
     TriggerBot = {
         Enabled = false,
-        Key = Enum.UserInputType.MouseButton1,
         Delay = 50,
-        FOVSize = 10
+        Radius = 43,
+        FOV = 10,
+        Distance = 300,
+        ShowFOV = true
+    },
+    ESP = {
+        Enabled = false,
+        BoxColor = Color3.fromRGB(255, 0, 0),
+        TeamColor = false
     },
     Misc = {
         NoRecoil = false,
         AutoHeal = false,
         SpeedEnabled = false,
-        SpeedType = "Normal", -- "Normal" or "CFrame"
-        SpeedValue = 16,
-        CFrameSpeed = 1,
-        JumpHeight = 50,
-        InfiniteJump = false
+        SpeedValue = 1
     },
-    Keybinds = {
-        ToggleUI = Enum.KeyCode.Insert
+    UI = {
+        Visible = true
     }
 }
 
--- Create the UI
-local UI = SimpleUI.new("Matrix | Evade.CC")
+-- Create a better optimized UI
+local EvadeCC = Instance.new("ScreenGui")
+EvadeCC.Name = "Evade.cc"
+EvadeCC.ResetOnSpawn = false
+EvadeCC.Parent = game:GetService("CoreGui")
+
+-- Create a function for UI elements to reduce repetition
+local function createUIElement(className, properties, parent)
+    local element = Instance.new(className)
+    for property, value in pairs(properties) do
+        element[property] = value
+    end
+    element.Parent = parent
+    return element
+end
+
+-- Main UI Frame
+local MainFrame = createUIElement("Frame", {
+    Size = UDim2.new(0, 400, 0, 330),
+    Position = UDim2.new(0.5, -200, 0.5, -165),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0,
+    Active = true
+}, EvadeCC)
+
+-- Make the UI draggable
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+MainFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale, 
+            startPos.X.Offset + delta.X, 
+            startPos.Y.Scale, 
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Title Bar
+local TitleBar = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+    BorderSizePixel = 0
+}, MainFrame)
+
+-- Title Text
+local TitleText = createUIElement("TextLabel", {
+    Size = UDim2.new(0.5, 0, 1, 0),
+    Position = UDim2.new(0, 10, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "evade.cc",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 18,
+    Font = Enum.Font.SourceSansBold,
+    TextXAlignment = Enum.TextXAlignment.Left
+}, TitleBar)
+
+-- Hide/Show Button
+local HideButton = createUIElement("TextButton", {
+    Size = UDim2.new(0, 60, 0, 20),
+    Position = UDim2.new(1, -70, 0, 5),
+    BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+    BorderSizePixel = 0,
+    Text = "Hide",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 14,
+    Font = Enum.Font.SourceSans
+}, TitleBar)
+
+HideButton.MouseButton1Click:Connect(function()
+    Config.UI.Visible = not Config.UI.Visible
+    if Config.UI.Visible then
+        MainFrame.Size = UDim2.new(0, 400, 0, 330)
+        HideButton.Text = "Hide"
+    else
+        MainFrame.Size = UDim2.new(0, 400, 0, 30)
+        HideButton.Text = "Show"
+    end
+end)
+
+-- Content Frame
+local ContentFrame = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 1, -30),
+    Position = UDim2.new(0, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0
+}, MainFrame)
+
+-- Tab System
+local TabButtons = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+    BorderSizePixel = 0
+}, ContentFrame)
+
+local TabContent = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 1, -30),
+    Position = UDim2.new(0, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0
+}, ContentFrame)
 
 -- Create Tabs
-local AimbotTab = UI:AddTab("Aimbot")
-local ESPTab = UI:AddTab("ESP")
-local TriggerTab = UI:AddTab("TriggerBot")
-local MiscTab = UI:AddTab("Misc")
-local SettingsTab = UI:AddTab("Settings")
+local Tabs = {
+    "Aimbot",
+    "Visuals",
+    "Misc",
+    "Settings"
+}
 
--- Aimbot Tab
-local aimbotToggle = UI:AddToggle(AimbotTab.Name, "Enabled", Config.Aimbot.Enabled, function(value)
-    Config.Aimbot.Enabled = value
+local TabFrames = {}
+local ActiveTab = "Aimbot"
+
+for i, tabName in ipairs(Tabs) do
+    -- Tab Button
+    local TabButton = createUIElement("TextButton", {
+        Size = UDim2.new(0.25, 0, 1, 0),
+        Position = UDim2.new(0.25 * (i-1), 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Text = tabName,
+        TextColor3 = Color3.fromRGB(200, 200, 200),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, TabButtons)
+    
+    -- Tab Content Frame
+    local TabFrame = createUIElement("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        Visible = tabName == ActiveTab,
+        CanvasSize = UDim2.new(0, 0, 2, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y
+    }, TabContent)
+    
+    TabFrames[tabName] = TabFrame
+    
+    -- Tab Button Click
+    TabButton.MouseButton1Click:Connect(function()
+        ActiveTab = tabName
+        for _, frame in pairs(TabFrames) do
+            frame.Visible = false
+        end
+        TabFrame.Visible = true
+        
+        for _, button in ipairs(TabButtons:GetChildren()) do
+            if button:IsA("TextButton") then
+                button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                button.TextColor3 = Color3.fromRGB(200, 200, 200)
+            end
+        end
+        
+        TabButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    
+    -- Set initial active tab
+    if tabName == ActiveTab then
+        TabButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end
+
+-- Create a toggle button function
+local function createToggle(name, parent, callback, initialState)
+    local toggleContainer = createUIElement("Frame", {
+        Size = UDim2.new(0.9, 0, 0, 40),
+        Position = UDim2.new(0.05, 0, 0, #parent:GetChildren() * 45),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, parent)
+    
+    local toggleLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.7, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "  " .. name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, toggleContainer)
+    
+    local toggleButton = createUIElement("Frame", {
+        Size = UDim2.new(0, 40, 0, 20),
+        Position = UDim2.new(0.85, 0, 0.5, -10),
+        BackgroundColor3 = initialState and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(100, 100, 100),
+        BorderSizePixel = 0
+    }, toggleContainer)
+    
+    local toggleIndicator = createUIElement("Frame", {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(initialState and 0.6 or 0, 2, 0, 2),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, toggleButton)
+    
+    toggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local newState = not initialState
+            initialState = newState
+            
+            local targetPosition = newState and UDim2.new(0.6, 0, 0, 2) or UDim2.new(0, 2, 0, 2)
+            local targetColor = newState and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(100, 100, 100)
+            
+            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+            TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+            
+            callback(newState)
+        end
+    end)
+    
+    return toggleContainer
+end
+
+-- Create a slider function
+local function createSlider(name, parent, min, max, initialValue, callback)
+    local sliderContainer = createUIElement("Frame", {
+        Size = UDim2.new(0.9, 0, 0, 40),
+        Position = UDim2.new(0.05, 0, 0, #parent:GetChildren() * 45),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, parent)
+    
+    local sliderLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.5, 0, 0.5, 0),
+        BackgroundTransparency = 1,
+        Text = "  " .. name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, sliderContainer)
+    
+    local valueLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.1, 0, 0.5, 0),
+        Position = UDim2.new(0.85, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Text = tostring(initialValue),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, sliderContainer)
+    
+    local sliderTrack = createUIElement("Frame", {
+        Size = UDim2.new(0.7, 0, 0, 4),
+        Position = UDim2.new(0.15, 0, 0.7, 0),
+        BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+        BorderSizePixel = 0
+    }, sliderContainer)
+    
+    local sliderFill = createUIElement("Frame", {
+        Size = UDim2.new((initialValue - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 170, 255),
+        BorderSizePixel = 0
+    }, sliderTrack)
+    
+    local sliderKnob = createUIElement("Frame", {
+        Size = UDim2.new(0, 10, 0, 10),
+        Position = UDim2.new((initialValue - min) / (max - min), -5, 0.5, -5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, sliderTrack)
+    
+    local isDragging = false
+    
+    sliderKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+        end
+    end)
+    
+    sliderTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+            
+            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local value = min + (max - min) * relativeX
+            value = math.floor(value * 10) / 10 -- Round to 1 decimal place
+            
+            sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
+            sliderKnob.Position = UDim2.new(relativeX, -5, 0.5, -5)
+            valueLabel.Text = tostring(value)
+            callback(value)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local value = min + (max - min) * relativeX
+            value = math.floor(value * 10) / 10 -- Round to 1 decimal place
+            
+            sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
+            sliderKnob.Position = UDim2.new(relativeX, -5, 0.5, -5)
+            valueLabel.Text = tostring(value)
+            callback(value)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
+        end
+    end)
+    
+    return sliderContainer
+end
+
+-- Create Aimbot Tab
+createToggle("Aimbot", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Enabled = state
+end, Config.Aimbot.Enabled)
+
+createToggle("Team Check", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Team = state
+end, Config.Aimbot.Team)
+
+createToggle("Wall Check", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Wall = state
+end, Config.Aimbot.Wall)
+
+createToggle("Velocity Prediction", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Prediction.Enabled = state
+end, Config.Aimbot.Prediction.Enabled)
+
+createSlider("Prediction Value", TabFrames["Aimbot"], 0, 1, Config.Aimbot.Prediction.Value, function(value)
+    Config.Aimbot.Prediction.Value = value
 end)
 
-local fovSizeSlider = UI:AddSlider(AimbotTab.Name, "FOV Size", 10, 500, Config.Aimbot.FOVSize, function(value)
-    Config.Aimbot.FOVSize = value
+createToggle("Silent Aim", TabFrames["Aimbot"], function(state)
+    Config.SilentAim.Enabled = state
+end, Config.SilentAim.Enabled)
+
+-- Create Visuals Tab
+createToggle("ESP", TabFrames["Visuals"], function(state)
+    Config.ESP.Enabled = state
+end, Config.ESP.Enabled)
+
+createToggle("Team Color", TabFrames["Visuals"], function(state)
+    Config.ESP.TeamColor = state
+end, Config.ESP.TeamColor)
+
+createToggle("Trigger Bot", TabFrames["Visuals"], function(state)
+    Config.TriggerBot.Enabled = state
+end, Config.TriggerBot.Enabled)
+
+createToggle("Show FOV", TabFrames["Visuals"], function(state)
+    Config.TriggerBot.ShowFOV = state
+end, Config.TriggerBot.ShowFOV)
+
+createSlider("FOV Size", TabFrames["Visuals"], 10, 100, Config.TriggerBot.Radius, function(value)
+    Config.TriggerBot.Radius = value
 end)
 
-local showFOVToggle = UI:AddToggle(AimbotTab.Name, "Show FOV", Config.Aimbot.ShowFOV, function(value)
-    Config.Aimbot.ShowFOV = value
-end)
+-- Create Misc Tab
+createToggle("No Recoil", TabFrames["Misc"], function(state)
+    Config.Misc.NoRecoil = state
+end, Config.Misc.NoRecoil)
 
-local teamCheckToggle = UI:AddToggle(AimbotTab.Name, "Team Check", Config.Aimbot.Team, function(value)
-    Config.Aimbot.Team = value
-end)
+createToggle("Auto Heal", TabFrames["Misc"], function(state)
+    Config.Misc.AutoHeal = state
+end, Config.Misc.AutoHeal)
 
-local wallCheckToggle = UI:AddToggle(AimbotTab.Name, "Wall Check", Config.Aimbot.Wall, function(value)
-    Config.Aimbot.Wall = value
-end)
+createToggle("Speed Hack", TabFrames["Misc"], function(state)
+    Config.Misc.SpeedEnabled = state
+end, Config.Misc.SpeedEnabled)
 
--- ESP Tab
-local espToggle = UI:AddToggle(ESPTab.Name, "Enabled", Config.ESP.Enabled, function(value)
-    Config.ESP.Enabled = value
-end)
-
-local boxToggle = UI:AddToggle(ESPTab.Name, "Boxes", Config.ESP.BoxEnabled, function(value)
-    Config.ESP.BoxEnabled = value
-end)
-
-local nameToggle = UI:AddToggle(ESPTab.Name, "Names", Config.ESP.NameEnabled, function(value)
-    Config.ESP.NameEnabled = value
-end)
-
-local distanceToggle = UI:AddToggle(ESPTab.Name, "Distance", Config.ESP.DistanceEnabled, function(value)
-    Config.ESP.DistanceEnabled = value
-end)
-
-local tracerToggle = UI:AddToggle(ESPTab.Name, "Tracers", Config.ESP.TracerEnabled, function(value)
-    Config.ESP.TracerEnabled = value
-end)
-
-local teamColorToggle = UI:AddToggle(ESPTab.Name, "Team Colors", Config.ESP.TeamColor, function(value)
-    Config.ESP.TeamColor = value
-end)
-
-local espTeamCheckToggle = UI:AddToggle(ESPTab.Name, "Team Check", Config.ESP.TeamCheck, function(value)
-    Config.ESP.TeamCheck = value
-end)
-
--- TriggerBot Tab
-local triggerToggle = UI:AddToggle(TriggerTab.Name, "Enabled", Config.TriggerBot.Enabled, function(value)
-    Config.TriggerBot.Enabled = value
-end)
-
-local triggerDelaySlider = UI:AddSlider(TriggerTab.Name, "Delay (ms)", 0, 500, Config.TriggerBot.Delay, function(value)
-    Config.TriggerBot.Delay = value
-end)
-
-local triggerFOVSlider = UI:AddSlider(TriggerTab.Name, "FOV Size", 5, 100, Config.TriggerBot.FOVSize, function(value)
-    Config.TriggerBot.FOVSize = value
-end)
-
--- Misc Tab
-local speedToggle = UI:AddToggle(MiscTab.Name, "Speed Enabled", Config.Misc.SpeedEnabled, function(value)
-    Config.Misc.SpeedEnabled = value
-end)
-
-local speedTypeToggle = UI:AddToggle(MiscTab.Name, "CFrame Speed", Config.Misc.SpeedType == "CFrame", function(value)
-    Config.Misc.SpeedType = value and "CFrame" or "Normal"
-end)
-
-local speedSlider = UI:AddSlider(MiscTab.Name, "Walk Speed", 16, 100, Config.Misc.SpeedValue, function(value)
+createSlider("Speed Value", TabFrames["Misc"], 1, 10, Config.Misc.SpeedValue, function(value)
     Config.Misc.SpeedValue = value
 end)
 
-local cframeSpeedSlider = UI:AddSlider(MiscTab.Name, "CFrame Speed", 0.1, 10, Config.Misc.CFrameSpeed, function(value)
-    Config.Misc.CFrameSpeed = value
-end)
-
-local jumpHeightSlider = UI:AddSlider(MiscTab.Name, "Jump Height", 50, 200, Config.Misc.JumpHeight, function(value)
-    Config.Misc.JumpHeight = value
-end)
-
-local infJumpToggle = UI:AddToggle(MiscTab.Name, "Infinite Jump", Config.Misc.InfiniteJump, function(value)
-    Config.Misc.InfiniteJump = value
-end)
-
-local noRecoilToggle = UI:AddToggle(MiscTab.Name, "No Recoil", Config.Misc.NoRecoil, function(value)
-    Config.Misc.NoRecoil = value
-end)
-
-local autoHealToggle = UI:AddToggle(MiscTab.Name, "Auto Heal", Config.Misc.AutoHeal, function(value)
-    Config.Misc.AutoHeal = value
-end)
-
--- Implementation section
-
--- UI Toggle
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Config.Keybinds.ToggleUI then
-        UI.Main.Visible = not UI.Main.Visible
-    end
-end)
-
--- FOV Circles (Simple version for UNC support)
-local FOVCircles = {}
-
-if UNCSupport.DrawingLibrary then
-    -- Aimbot FOV
-    FOVCircles.Aimbot = Drawing.new("Circle")
-    FOVCircles.Aimbot.Thickness = 1
-    FOVCircles.Aimbot.NumSides = 36
-    FOVCircles.Aimbot.Radius = Config.Aimbot.FOVSize
-    FOVCircles.Aimbot.Filled = false
-    FOVCircles.Aimbot.Visible = Config.Aimbot.ShowFOV and Config.Aimbot.Enabled
-    FOVCircles.Aimbot.Transparency = 0.8
-    FOVCircles.Aimbot.Color = Config.Aimbot.FOVColor
+-- Notification Function
+local function createNotification(text)
+    local Notification = createUIElement("Frame", {
+        Size = UDim2.new(0, 200, 0, 50),
+        Position = UDim2.new(1, -220, 0, 80),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, EvadeCC)
     
-    -- TriggerBot FOV
-    FOVCircles.TriggerBot = Drawing.new("Circle")
-    FOVCircles.TriggerBot.Thickness = 1
-    FOVCircles.TriggerBot.NumSides = 36
-    FOVCircles.TriggerBot.Radius = Config.TriggerBot.FOVSize
-    FOVCircles.TriggerBot.Filled = false
-    FOVCircles.TriggerBot.Visible = Config.TriggerBot.Enabled
-    FOVCircles.TriggerBot.Transparency = 0.8
-    FOVCircles.TriggerBot.Color = Color3.fromRGB(255, 255, 0)
+    local NotificationText = createUIElement("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, Notification)
+    
+    -- Animation
+    Notification.Position = UDim2.new(1, 20, 0, 80)
+    TweenService:Create(Notification, TweenInfo.new(0.5), {Position = UDim2.new(1, -220, 0, 80)}):Play()
+    
+    task.delay(3, function()
+        TweenService:Create(Notification, TweenInfo.new(0.5), {Position = UDim2.new(1, 20, 0, 80)}):Play()
+        task.delay(0.5, function()
+            Notification:Destroy()
+        end)
+    end)
 end
 
--- Function to update FOV circles
-local function UpdateFOVCircles()
-    if not UNCSupport.DrawingLibrary then return end
-    
-    FOVCircles.Aimbot.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    FOVCircles.Aimbot.Radius = Config.Aimbot.FOVSize
-    FOVCircles.Aimbot.Visible = Config.Aimbot.ShowFOV and Config.Aimbot.Enabled
-    
-    FOVCircles.TriggerBot.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    FOVCircles.TriggerBot.Radius = Config.TriggerBot.FOVSize
-    FOVCircles.TriggerBot.Visible = Config.TriggerBot.Enabled
-end
-
--- Update FOV circles when camera changes
-Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateFOVCircles)
-UpdateFOVCircles()
-
--- Speed modification
-local function UpdateSpeed()
-    if not Character or not Humanoid then return end
-    
-    if Config.Misc.SpeedEnabled then
-        if Config.Misc.SpeedType == "Normal" then
-            Humanoid.WalkSpeed = Config.Misc.SpeedValue
-        end
-        -- CFrame speed is handled in the RunService loop
-    else
-        Humanoid.WalkSpeed = 16 -- Default
-    end
-    
-    -- Jump height
-    Humanoid.JumpPower = Config.Misc.JumpHeight
-end
-
--- Infinite Jump
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if Config.Misc.InfiniteJump and input.KeyCode == Enum.KeyCode.Space then
-        if Character and Humanoid then
-            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-    end
-end)
-
--- Main update loop
-RunService.RenderStepped:Connect(function()
-    -- Update player movement
-    UpdateSpeed()
-    
-    -- CFrame Speed implementation
-    if Config.Misc.SpeedEnabled and Config.Misc.SpeedType == "CFrame" then
-        if Character and HRP and UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            HRP.CFrame = HRP.CFrame + (Camera.CFrame.LookVector * Config.Misc.CFrameSpeed)
-        end
-    end
-    
-    -- Update FOV circles
-    UpdateFOVCircles()
-end)
-
--- ESP implementation (simplified for UNC compatibility)
-if UNCSupport.DrawingLibrary then
-    local ESPObjects = {}
-    
-    local function ClearESP()
-        for _, objects in pairs(ESPObjects) do
-            for _, object in pairs(objects) do
-                object:Remove()
+-- Aimbot Function
+local function getClosestTarget()
+    local closest, distance = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            -- Team Check
+            if Config.Aimbot.Team and player.Team == LocalPlayer.Team then
+                continue
+            end
+            
+            -- Wall Check
+            if Config.Aimbot.Wall then
+                local ray = Ray.new(Camera.CFrame.Position, (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).Unit * 300)
+                local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+                if hit and not hit:IsDescendantOf(player.Character) then
+                    continue
+                end
+            end
+            
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                if mag < distance then
+                    closest, distance = player, mag
+                end
             end
         end
-        ESPObjects = {}
+    end
+    return closest
+end
+
+-- Aimbot Logic
+local function aimAt(target)
+    if not target or not target.Character or not target.Character:FindFirstChild(Config.Aimbot.HitPart) then
+        return
     end
     
-    local function CreateESP(player)
-        if player == LocalPlayer then return end
-        
-        ESPObjects[player] = {
-            Box = Drawing.new("Square"),
-            Name = Drawing.new("Text"),
-            Distance = Drawing.new("Text"),
-            Tracer = Drawing.new("Line")
-        }
-        
-        -- Box settings
-        ESPObjects[player].Box.Thickness = 1
-        ESPObjects[player].Box.Filled = false
-        ESPObjects[player].Box.Color = Config.ESP.BoxColor
-        ESPObjects[player].Box.Transparency = 0.8
-        ESPObjects[player].Box.Visible = false
-        
-        -- Name settings
-        ESPObjects[player].Name.Size = 14
-        ESPObjects[player].Name.Center = true
-        ESPObjects[player].Name.Outline = true
-        ESPObjects[player].Name.Color = Config.ESP.NameColor
-        ESPObjects[player].Name.Transparency = 0.8
-        ESPObjects[player].Name.Visible = false
-        
-        -- Distance settings
-        ESPObjects[player].Distance.Size = 13
-        ESPObjects[player].Distance.Center = true
-        ESPObjects[player].Distance.Outline = true
-        ESPObjects[player].Distance.Color = Config.ESP.DistanceColor
-        ESPObjects[player].Distance.Transparency = 0.8
-        ESPObjects[player].Distance.Visible = false
-        
-        -- Tracer settings
-        ESPObjects[player].Tracer.Thickness = 1
-        ESPObjects[player].Tracer.Color = Config.ESP.TracerColor
-        ESPObjects[player].Tracer.Transparency = 0.8
-        ESPObjects[player].Tracer.Visible = false
+    local targetPart = target.Character[Config.Aimbot.HitPart]
+    local targetPos = targetPart.Position
+    
+    if Config.Aimbot.Prediction.Enabled and target.Character:FindFirstChild("HumanoidRootPart") then
+        local velocity = target.Character.HumanoidRootPart.Velocity
+        targetPos = targetPos + velocity * Config.Aimbot.Prediction.Value
     end
     
-    -- Create ESP for existing players
-    for _, player in ipairs(Players:GetPlayers
+    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+end
+
+-- Silent Aim Hook
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    if Config.SilentAim.Enabled and (method == "FireServer" or method == "InvokeServer") and self.Name == "RemoteEvent" then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and math.random(1, 100) <= Config.SilentAim.HitChance then
+            args[1] = target.Character.HumanoidRootPart.Position
+        end
+    end
+    
+    return oldNamecall(self, unpack(args))
+end)
+
+-- TriggerBot FOV Circle
+local FOVCircle
+if Drawing then
+    FOVCircle = Drawing.new("Circle")
+    FOVCircle.Thickness = 1
+    FOVCircle.NumSides = 100
+    FOVCircle.Radius = Config.TriggerBot.Radius
+    FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+    FOVCircle.Filled = false
+    FOVCircle.Transparency = 0.5
+    FOVCircle.Visible = false
+end
+
+-- TriggerBot Function
+local function triggerBot()
+    if not Config.TriggerBot.Enabled then return end
+    
+    local mousePosition = UserInputService:GetMouseLocation()
+    local closestPart = nil
+    local closestDistance = math.huge
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+                        local distanceFromCamera = (part.Position - Camera.CFrame.Position).Magnitude
+                        
+                        if distance <= Config.TriggerBot.Radius and distanceFromCamera <= Config.TriggerBot.Distance and distance < closestDistance then
+                            closestDistance = distance
+                            closestPart = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if closestPart then
+        task.delay(Config.TriggerBot.Delay / 1000, function()
+            mouse1click()
+        end)
+    end
+    
+    if FOVCircle and Config.TriggerBot.ShowFOV then
+        FOVCircle.Position = mousePosition
+        FOVCircle.Radius = Config.TriggerBot.Radius
+        FOVCircle.Visible = true
+    elseif FOVCircle then
+        FOVCircle.Visible = false
+    end
+end
+
+-- ESP Function
+local function updateESP()
+    if not Config.ESP.Enabled then
+        for _, esp in pairs(game.CoreGui:GetChildren()) do
+            if esp.Name == "ESPBox" then
+                esp:Destroy()
+            end
+        end
+        return
+    end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local existingESP = game.CoreGui:FindFirstChild("ESPBox_" .. player.Name)
+            
+            if not existingESP then
+                local espBox = Instance.new("BoxHandleAdornment")
+                espBox.Name = "ESPBox_" .. player.Name
+                espBox.Adornee = player.Character.HumanoidRootPart
+                espBox.Size = Vector3.new(4, 6, 4)
+                espBox.AlwaysOnTop = true
+                espBox.ZIndex = 10
+                espBox.Parent = game.CoreGui
+                
+                -- Team Color Logic
+                if Config.ESP.TeamColor and player.Team then
+                    espBox.Color3 = player.Team.TeamColor.Color
+                else
+                    espBox.Color3 = Config.ESP.BoxColor
+                end
+            elseif Config.ESP.TeamColor and player.Team then
+                existingESP.Color3 = player.Team.TeamColor.Color
+            end
+        end
+    end
+    
+    -- Clean up ESP for non-existent players
+    for _, esp in pairs(game.CoreGui:GetChildren()) do
+        if esp.Name:find("ESPBox_") then
+            local playerName = esp.Name:gsub("ESPBox_", "")
+            if not Players:FindFirstChild(playerName) then
+                esp:Destroy()
+            end
+        end
+    end
+end
+
+-- No Recoil Function
+local function applyNoRecoil()
+    if Config.Misc.NoRecoil then
+        for _, v in ipairs(getgc(true)) do
+            if type(v) == "table" then
+                if rawget(v, "Recoil") then
+                    v.Recoil = 0
+                end
+                if rawget(v, "Spread") then
+                    v.Spread = 0
+                end
+            end
+        end
+    end
+end
+
+-- Auto Heal Function
+local function autoHeal()
+    if Config.Misc.AutoHeal and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        if LocalPlayer.Character.Humanoid.Health < 50 then
+            local medkitEvent = game:GetService("ReplicatedStorage"):FindFirstChild("UseMedkit")
+            if medkitEvent then
+                medkitEvent:FireServer()
+            end
+        end
+    end
+end
+
+-- Speed Hack Function
+local function applySpeedHack()
+    if Config.Misc.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + 
+            LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * Config.Misc.SpeedValue
+    end
+end
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    -- Aimbot
+    if Config.Aimbot.Enabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType[Config.Aimbot.Key]) then
+        local target = getClosestTarget()
+        if target then
+            aimAt(target)
+        end
+    end
+    
+    -- TriggerBot
+    triggerBot()
+    
+    -- ESP
+    updateESP()
+    
+    -- No Recoil
+    applyNoRecoil()
+    
+    -- Auto Heal
+    autoHeal()
+    
+    -- Speed Hack
+    applySpeedHack()
+end)
+
+-- Cleanup on script end
+game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+    if child == EvadeCC then
+        if FOVCircle then
+            FOVCircle:Remove()
+        end
+        -- Remove hooks and connections here if needed
+    end
+end)
+
+-- Notification on load
+createNotification("Evade.cc Loaded Successfully!")
