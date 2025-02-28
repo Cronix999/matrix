@@ -638,8 +638,6 @@ miscY = select(2, CreateToggle(TabFrames["Misc"], "Auto Reload", miscY, Settings
     Settings.AutoReloadEnabled = value
 end))
 
--- Config Tab (Placeholders for saving/loading)
+-- Config Tab (Complete the missing part)
 local configY = 10
 configY = select(2, CreateLabel(TabFrames["Config"], "Config Settings", configY))
-
-local saveButton = Instance.
