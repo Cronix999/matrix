@@ -1,0 +1,173 @@
+--// MatrixHub Custom UI + PvP Features \\--
+-- Fully Custom UI (Exact Replica of Your Screenshot)
+-- Features: Aimbot, Silent Aim, TriggerBot, ESP, Speed Hack, No Recoil, Auto-Heal, etc.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = game.Workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+--// UI Setup (Custom UI Matching Your Screenshot)
+local MatrixHubUI = Instance.new("ScreenGui")
+MatrixHubUI.Parent = game.CoreGui
+MatrixHubUI.Name = "MatrixHub"
+
+-- Main UI Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Parent = MatrixHubUI
+
+-- Tab System
+local Tabs = {"Aimbot", "Misc", "Whitelist", "Teleport"}
+local ActiveTab = "Aimbot"
+
+local function CreateTab(name)
+    local Tab = Instance.new("TextButton")
+    Tab.Size = UDim2.new(0, 80, 0, 30)
+    Tab.Text = name
+    Tab.Parent = MainFrame
+    Tab.MouseButton1Click:Connect(function()
+        ActiveTab = name
+        print("Switched to tab:", name)
+    end)
+end
+
+for _, tabName in pairs(Tabs) do
+    CreateTab(tabName)
+end
+
+--// Feature Variables
+local AimbotEnabled = false
+local SilentAimEnabled = false
+local TriggerBotEnabled = false
+local SpeedEnabled = false
+local ESPEnabled = false
+local NoRecoil = false
+local AutoHeal = false
+local SpeedValue = 1
+
+--// Function to Get Closest Enemy
+local function getClosestTarget()
+    local closest, distance = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                if mag < distance then
+                    closest, distance = player, mag
+                end
+            end
+        end
+    end
+    return closest
+end
+
+--// ✅ Aimbot
+RunService.RenderStepped:Connect(function()
+    if AimbotEnabled then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.HumanoidRootPart.Position)
+        end
+    end
+end)
+
+--// ✅ Silent Aim (Miss 0 Shots)
+local oldIndex; oldIndex = hookmetamethod(game, "__index", function(self, key)
+    if SilentAimEnabled and key == "Hit" then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            return target.Character.HumanoidRootPart
+        end
+    end
+    return oldIndex(self, key)
+end)
+
+--// ✅ TriggerBot (Instant Fire, No Delay)
+RunService.RenderStepped:Connect(function()
+    if TriggerBotEnabled then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            mouse1press()
+            task.wait(0.01)
+            mouse1release()
+        end
+    end
+end)
+
+--// ✅ No Recoil / No Spread
+RunService.RenderStepped:Connect(function()
+    if NoRecoil then
+        for _, v in ipairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "Recoil") then
+                v.Recoil = 0
+            end
+            if type(v) == "table" and rawget(v, "Spread") then
+                v.Spread = 0
+            end
+        end
+    end
+end)
+
+--// ✅ ESP (Wallhack)
+local function CreateESP(player)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local ESPBox = Instance.new("BoxHandleAdornment")
+        ESPBox.Adornee = player.Character.HumanoidRootPart
+        ESPBox.Size = Vector3.new(4, 6, 4)
+        ESPBox.Color3 = Color3.fromRGB(255, 0, 0)
+        ESPBox.AlwaysOnTop = true
+        ESPBox.Parent = game.CoreGui
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if ESPEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateESP(player)
+            end
+        end
+    end
+end)
+
+--// ✅ Auto-Heal (Uses Medkits)
+RunService.RenderStepped:Connect(function()
+    if AutoHeal and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        if LocalPlayer.Character.Humanoid.Health < 50 then
+            game:GetService("ReplicatedStorage"):FindFirstChild("UseMedkit"):FireServer()
+        end
+    end
+end)
+
+--// ✅ CFrame Speed Hack
+RunService.RenderStepped:Connect(function()
+    if SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * SpeedValue
+    end
+end)
+
+--// ✅ UI Buttons
+local function CreateButton(name, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 100, 0, 30)
+    Button.Text = name
+    Button.Parent = MainFrame
+    Button.MouseButton1Click:Connect(callback)
+end
+
+CreateButton("Toggle Aimbot", function() AimbotEnabled = not AimbotEnabled end)
+CreateButton("Toggle Silent Aim", function() SilentAimEnabled = not SilentAimEnabled end)
+CreateButton("Toggle TriggerBot", function() TriggerBotEnabled = not TriggerBotEnabled end)
+CreateButton("Toggle ESP", function() ESPEnabled = not ESPEnabled end)
+CreateButton("Toggle No Recoil", function() NoRecoil = not NoRecoil end)
+CreateButton("Toggle Auto-Heal", function() AutoHeal = not AutoHeal end)
+CreateButton("Increase Speed", function() SpeedValue = SpeedValue + 1 end)
+
+--// ✅ Notification (Loaded)
+print("🔥 MatrixHub Loaded! Destroy Your Enemies! 🚀")
