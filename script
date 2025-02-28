@@ -681,6 +681,3 @@ local function createDropdown(name, parent, options, initialValue, callback)
         ImageColor3 = Config.UI.Theme.Accent,
         Rotation = 0
     }, dropdownContainer)
-    
-    local optionsContainer = createUIElement("Frame", {
-        Size = UDim2.new(0.9, 0,
