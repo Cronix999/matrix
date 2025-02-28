@@ -1,752 +1,670 @@
--- MatrixHub-Style Evade.cc - Enhanced PvP Script
+-- MatrixHub-Style Evade.cc - Enhanced PvP Script (UNC Compatible)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
-local Camera = game.Workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local HRP = Character:WaitForChild("HumanoidRootPart")
+local Camera = workspace.CurrentCamera
 
--- Check if Drawing library is available
-local DrawingLibrary = Drawing or nil
-if not DrawingLibrary then
-    warn("Drawing library not available - ESP features will be limited")
-end
+-- Make sure we update character references when character respawns
+LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
+    Character = NewCharacter
+    Humanoid = Character:WaitForChild("Humanoid")
+    HRP = Character:WaitForChild("HumanoidRootPart")
+end)
 
--- Feature configuration
-local Config = {
-    Aimbot = {
-        Enabled = false,
-        Key = "MouseButton2",
-        KeyMode = "Hold",
-        HitPart = "Head",
-        Team = false,
-        Wall = false,
-        FOVSize = 100,
-        ShowFOV = true,
-        FOVColor = Color3.fromRGB(255, 255, 255),
-        Prediction = {
-            Enabled = true,
-            Value = 0.165
-        }
-    },
-    SilentAim = {
-        Enabled = false,
-        HitChance = 100,
-        FOVSize = 150,
-        ShowFOV = true,
-        FOVColor = Color3.fromRGB(255, 0, 0)
-    },
-    TriggerBot = {
-        Enabled = false,
-        Key = "MouseButton1",
-        Delay = 50,
-        MinimumDistance = 10,
-        MaximumDistance = 300,
-        FOVSize = 10,
-        ShowFOV = true,
-        FOVColor = Color3.fromRGB(255, 255, 0)
-    },
-    ESP = {
-        Enabled = false,
-        BoxEnabled = false,
-        BoxColor = Color3.fromRGB(255, 0, 0),
-        SkeletonEnabled = false,
-        SkeletonColor = Color3.fromRGB(255, 255, 255),
-        NameEnabled = false,
-        NameColor = Color3.fromRGB(255, 255, 255),
-        HealthEnabled = false,
-        HealthColor = Color3.fromRGB(0, 255, 0),
-        DistanceEnabled = false,
-        DistanceColor = Color3.fromRGB(255, 255, 255),
-        TracerEnabled = false,
-        TracerColor = Color3.fromRGB(255, 0, 0),
-        TeamColor = false,
-        TeamCheck = false,
-        Transparency = 0.8
-    },
-    Misc = {
-        NoRecoil = false,
-        AutoHeal = false,
-        SpeedEnabled = false,
-        SpeedValue = 1,
-        JumpHeight = 50,
-        InfiniteJump = false
-    },
-    UI = {
-        Visible = true
-    },
-    Keybinds = {
-        ToggleUI = Enum.KeyCode.Insert
-    }
+-- Check for UNC executor limitations
+local UNCSupport = {
+    DrawingLibrary = (Drawing ~= nil),
+    TweenService = pcall(function() return game:GetService("TweenService") end)
 }
 
--- Clean up existing UI
-local existingUI = CoreGui:FindFirstChild("MatrixEvadeCC")
-if existingUI then
-    existingUI:Destroy()
+-- Simple UI framework for UNC executors
+local SimpleUI = {}
+SimpleUI.__index = SimpleUI
+
+function SimpleUI.new(title)
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "MatrixEvadeCC"
+    gui.ResetOnSpawn = false
+    
+    -- Make GUI visible in lower level executors
+    if syn then
+        syn.protect_gui(gui)
+        gui.Parent = game:GetService("CoreGui")
+    elseif gethui then
+        gui.Parent = gethui()
+    elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
+        gui.Parent = game:GetService("CoreGui").RobloxGui
+    else
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local main = Instance.new("Frame")
+    main.Name = "MainFrame"
+    main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    main.BorderColor3 = Color3.fromRGB(0, 180, 255)
+    main.BorderSizePixel = 1
+    main.Position = UDim2.new(0.5, -175, 0.5, -150)
+    main.Size = UDim2.new(0, 350, 0, 300)
+    main.Active = true
+    main.Draggable = true -- Make window draggable for UNC
+    main.Parent = gui
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 23)
+    titleBar.BorderSizePixel = 0
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Parent = main
+
+    local titleText = Instance.new("TextLabel")
+    titleText.Name = "Title"
+    titleText.BackgroundTransparency = 1
+    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.Size = UDim2.new(1, -20, 1, 0)
+    titleText.Font = Enum.Font.SourceSansBold
+    titleText.Text = title
+    titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleText.TextSize = 16
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.Parent = titleBar
+
+    -- Simple Tab System
+    local tabContainer = Instance.new("Frame")
+    tabContainer.Name = "TabContainer"
+    tabContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    tabContainer.BorderSizePixel = 0
+    tabContainer.Position = UDim2.new(0, 0, 0, 30)
+    tabContainer.Size = UDim2.new(1, 0, 0, 30)
+    tabContainer.Parent = main
+
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "ContentFrame"
+    contentFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    contentFrame.BorderSizePixel = 0
+    contentFrame.Position = UDim2.new(0, 0, 0, 60)
+    contentFrame.Size = UDim2.new(1, 0, 1, -60)
+    contentFrame.Parent = main
+
+    local self = setmetatable({
+        GUI = gui,
+        Main = main,
+        ContentFrame = contentFrame,
+        TabButtons = {},
+        TabFrames = {},
+        CurrentTab = nil,
+        TabContainer = tabContainer
+    }, SimpleUI)
+
+    return self
 end
 
--- Clean up ESP
-for _, obj in pairs(CoreGui:GetChildren()) do
-    if obj.Name:match("^ESP_") then
-        obj:Destroy()
-    end
-end
-
--- Create a better Matrix Hub-style UI
-local MatrixUI = Instance.new("ScreenGui")
-MatrixUI.Name = "MatrixEvadeCC"
-MatrixUI.ResetOnSpawn = false
-MatrixUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-MatrixUI.Parent = CoreGui
-
--- Helper functions for UI creation
-local function createUIElement(className, properties, parent)
-    local element = Instance.new(className)
-    for property, value in pairs(properties) do
-        element[property] = value
-    end
-    element.Parent = parent
-    return element
-end
-
--- Create Shadow Effect
-local function createShadow(parent, offset)
-    local shadow = createUIElement("Frame", {
-        Size = UDim2.new(1, 4, 1, 4),
-        Position = UDim2.new(0, offset, 0, offset),
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.7,
-        BorderSizePixel = 0,
-        ZIndex = parent.ZIndex - 1
-    }, parent.Parent)
-    return shadow
-end
-
--- MatrixHub Style UI Colors
-local MatrixColors = {
-    Background = Color3.fromRGB(25, 25, 30),
-    DarkBackground = Color3.fromRGB(20, 20, 25),
-    LightBackground = Color3.fromRGB(30, 30, 35),
-    Accent = Color3.fromRGB(0, 180, 255),
-    Text = Color3.fromRGB(255, 255, 255),
-    SubText = Color3.fromRGB(200, 200, 200),
-    Border = Color3.fromRGB(40, 40, 45),
-    Highlight = Color3.fromRGB(50, 50, 60),
-    Success = Color3.fromRGB(0, 255, 140),
-    Error = Color3.fromRGB(255, 0, 68)
-}
-
--- Main UI Frame
-local MainFrame = createUIElement("Frame", {
-    Size = UDim2.new(0, 450, 0, 350),
-    Position = UDim2.new(0.5, -225, 0.5, -175),
-    BackgroundColor3 = MatrixColors.Background,
-    BorderSizePixel = 0,
-    ClipsDescendants = true,
-    Active = true,
-    ZIndex = 10
-}, MatrixUI)
-
-local MainFrameShadow = createShadow(MainFrame, 3)
-
--- Apply rounded corners
-local MainCorner = createUIElement("UICorner", {
-    CornerRadius = UDim.new(0, 8)
-}, MainFrame)
-
--- Title Bar with gradient
-local TitleBar = createUIElement("Frame", {
-    Size = UDim2.new(1, 0, 0, 36),
-    BackgroundColor3 = MatrixColors.DarkBackground,
-    BorderSizePixel = 0,
-    ZIndex = 11
-}, MainFrame)
-
-local TitleCorner = createUIElement("UICorner", {
-    CornerRadius = UDim.new(0, 8)
-}, TitleBar)
-
--- Title Bar Bottom Cover (to make only top corners rounded)
-local TitleBarCover = createUIElement("Frame", {
-    Size = UDim2.new(1, 0, 0, 10),
-    Position = UDim2.new(0, 0, 1, -10),
-    BackgroundColor3 = MatrixColors.DarkBackground,
-    BorderSizePixel = 0,
-    ZIndex = 11
-}, TitleBar)
-
--- Matrix Hub Logo
-local LogoContainer = createUIElement("Frame", {
-    Size = UDim2.new(0, 30, 0, 30),
-    Position = UDim2.new(0, 10, 0, 3),
-    BackgroundTransparency = 1,
-    ZIndex = 12
-}, TitleBar)
-
--- Create Matrix grid logo
-for i = 1, 3 do
-    for j = 1, 3 do
-        local dot = createUIElement("Frame", {
-            Size = UDim2.new(0, 6, 0, 6),
-            Position = UDim2.new(0, (i-1)*10, 0, (j-1)*10),
-            BackgroundColor3 = MatrixColors.Accent,
-            BorderSizePixel = 0,
-            ZIndex = 13
-        }, LogoContainer)
-        
-        createUIElement("UICorner", {
-            CornerRadius = UDim.new(1, 0)
-        }, dot)
-    end
-end
-
--- Title Text
-local TitleText = createUIElement("TextLabel", {
-    Size = UDim2.new(0, 200, 1, 0),
-    Position = UDim2.new(0, 50, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "MATRIX | EVADE.CC",
-    TextColor3 = MatrixColors.Text,
-    TextSize = 18,
-    Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 12
-}, TitleBar)
-
--- Close Button
-local CloseButton = createUIElement("TextButton", {
-    Size = UDim2.new(0, 36, 0, 36),
-    Position = UDim2.new(1, -36, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "✕",
-    TextColor3 = MatrixColors.SubText,
-    TextSize = 18,
-    Font = Enum.Font.GothamBold,
-    ZIndex = 12
-}, TitleBar)
-
--- Minimize Button
-local MinimizeButton = createUIElement("TextButton", {
-    Size = UDim2.new(0, 36, 0, 36),
-    Position = UDim2.new(1, -72, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "−",
-    TextColor3 = MatrixColors.SubText,
-    TextSize = 18,
-    Font = Enum.Font.GothamBold,
-    ZIndex = 12
-}, TitleBar)
-
--- Status indicator
-local StatusIndicator = createUIElement("Frame", {
-    Size = UDim2.new(0, 8, 0, 8),
-    Position = UDim2.new(1, -100, 0.5, -4),
-    BackgroundColor3 = MatrixColors.Success,
-    ZIndex = 12
-}, TitleBar)
-
-createUIElement("UICorner", {
-    CornerRadius = UDim.new(1, 0)
-}, StatusIndicator)
-
-local StatusText = createUIElement("TextLabel", {
-    Size = UDim2.new(0, 80, 1, 0),
-    Position = UDim2.new(1, -90, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "RUNNING",
-    TextColor3 = MatrixColors.SubText,
-    TextSize = 12,
-    Font = Enum.Font.Gotham,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 12
-}, TitleBar)
-
--- Content Frame
-local ContentFrame = createUIElement("Frame", {
-    Size = UDim2.new(1, 0, 1, -36),
-    Position = UDim2.new(0, 0, 0, 36),
-    BackgroundColor3 = MatrixColors.Background,
-    BorderSizePixel = 0,
-    ZIndex = 10
-}, MainFrame)
-
--- Tab System - Side navigation
-local SideNav = createUIElement("Frame", {
-    Size = UDim2.new(0, 100, 1, 0),
-    BackgroundColor3 = MatrixColors.DarkBackground,
-    BorderSizePixel = 0,
-    ZIndex = 11
-}, ContentFrame)
-
-local SideNavCorner = createUIElement("UICorner", {
-    CornerRadius = UDim.new(0, 8)
-}, SideNav)
-
--- Side Nav Right Cover
-local SideNavCover = createUIElement("Frame", {
-    Size = UDim2.new(0, 10, 1, 0),
-    Position = UDim2.new(1, -10, 0, 0),
-    BackgroundColor3 = MatrixColors.DarkBackground,
-    BorderSizePixel = 0,
-    ZIndex = 11
-}, SideNav)
-
--- Tab Content Area
-local TabContent = createUIElement("Frame", {
-    Size = UDim2.new(1, -100, 1, 0),
-    Position = UDim2.new(0, 100, 0, 0),
-    BackgroundColor3 = MatrixColors.Background,
-    BorderSizePixel = 0,
-    ClipsDescendants = true,
-    ZIndex = 11
-}, ContentFrame)
-
--- Create Tabs
-local Tabs = {
-    "Aimbot",
-    "ESP",
-    "Trigger",
-    "Misc",
-    "Settings"
-}
-
-local TabFrames = {}
-local TabButtons = {}
-local ActiveTab = "Aimbot"
-
--- Function to switch tabs
-local function switchTab(tabName)
-    ActiveTab = tabName
-    for name, frame in pairs(TabFrames) do
-        frame.Visible = (name == tabName)
+function SimpleUI:AddTab(name)
+    local tabCount = #self.TabContainer:GetChildren() - 1
+    local tabWidth = 1 / (tabCount + 1)
+    
+    -- Resize existing tabs
+    for _, button in pairs(self.TabButtons) do
+        button.Size = UDim2.new(tabWidth, 0, 1, 0)
+        -- Reposition buttons
+        local index = button:FindFirstChild("Index").Value
+        button.Position = UDim2.new(tabWidth * (index - 1), 0, 0, 0)
     end
     
-    for _, button in pairs(TabButtons) do
-        button.BackgroundColor3 = MatrixColors.DarkBackground
-        button.TextLabel.TextColor3 = MatrixColors.SubText
-        button.Indicator.BackgroundTransparency = 1
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = name .. "Button"
+    tabButton.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    tabButton.BorderSizePixel = 0
+    tabButton.Position = UDim2.new(tabWidth * tabCount, 0, 0, 0)
+    tabButton.Size = UDim2.new(tabWidth, 0, 1, 0)
+    tabButton.Font = Enum.Font.SourceSans
+    tabButton.Text = name
+    tabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    tabButton.TextSize = 14
+    tabButton.Parent = self.TabContainer
+    
+    -- Store index for repositioning
+    local index = Instance.new("IntValue")
+    index.Name = "Index"
+    index.Value = tabCount + 1
+    index.Parent = tabButton
+    
+    local tabFrame = Instance.new("ScrollingFrame")
+    tabFrame.Name = name .. "Frame"
+    tabFrame.BackgroundTransparency = 1
+    tabFrame.BorderSizePixel = 0
+    tabFrame.Size = UDim2.new(1, 0, 1, 0)
+    tabFrame.CanvasSize = UDim2.new(0, 0, 3, 0)
+    tabFrame.ScrollBarThickness = 4
+    tabFrame.Visible = (self.CurrentTab == nil)
+    tabFrame.Parent = self.ContentFrame
+    
+    -- Select this tab if it's the first one
+    if self.CurrentTab == nil then
+        self.CurrentTab = name
+        tabButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
     
-    local selectedButton = TabButtons[tabName]
-    if selectedButton then
-        selectedButton.BackgroundColor3 = MatrixColors.LightBackground
-        selectedButton.TextLabel.TextColor3 = MatrixColors.Text
-        selectedButton.Indicator.BackgroundTransparency = 0
-    end
-end
-
--- Create tab buttons and frames
-for i, tabName in ipairs(Tabs) do
-    -- Tab Button
-    local TabButton = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 36),
-        Position = UDim2.new(0, 0, 0, 10 + (i-1) * 40),
-        BackgroundColor3 = (tabName == ActiveTab) and MatrixColors.LightBackground or MatrixColors.DarkBackground,
-        BorderSizePixel = 0,
-        ZIndex = 12
-    }, SideNav)
-    
-    -- Selection Indicator
-    local TabIndicator = createUIElement("Frame", {
-        Size = UDim2.new(0, 3, 0, 20),
-        Position = UDim2.new(0, 0, 0.5, -10),
-        BackgroundColor3 = MatrixColors.Accent,
-        BorderSizePixel = 0,
-        BackgroundTransparency = (tabName == ActiveTab) and 0 or 1,
-        ZIndex = 12
-    }, TabButton)
-    
-    -- Tab Label
-    local TabLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(1, -10, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
-        BackgroundTransparency = 1,
-        Text = tabName:upper(),
-        TextColor3 = (tabName == ActiveTab) and MatrixColors.Text or MatrixColors.SubText,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 12
-    }, TabButton)
-    
-    -- Make button clickable
-    local TabButtonClickArea = createUIElement("TextButton", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "",
-        ZIndex = 13
-    }, TabButton)
-    
-    TabButtonClickArea.MouseButton1Click:Connect(function()
-        switchTab(tabName)
+    tabButton.MouseButton1Click:Connect(function()
+        self:SelectTab(name)
     end)
     
-    -- Store references
-    TabButton.TextLabel = TabLabel
-    TabButton.Indicator = TabIndicator
-    TabButtons[tabName] = TabButton
+    self.TabButtons[name] = tabButton
+    self.TabFrames[name] = tabFrame
     
-    -- Tab Content Frame
-    local TabFrame = createUIElement("ScrollingFrame", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 2,
-        ScrollBarImageColor3 = MatrixColors.Accent,
-        Visible = tabName == ActiveTab,
-        CanvasSize = UDim2.new(0, 0, 0, 0),
-        ScrollingDirection = Enum.ScrollingDirection.Y,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        ZIndex = 12
-    }, TabContent)
-    
-    TabFrames[tabName] = TabFrame
+    return tabFrame
 end
 
--- Create section container
-local function createSection(title, parent)
-    local sectionCount = #parent:GetChildren()
-    local yPos = (sectionCount == 0) and 10 or (sectionCount * 160)
+function SimpleUI:SelectTab(name)
+    if self.CurrentTab == name then return end
     
-    local section = createUIElement("Frame", {
-        Size = UDim2.new(1, -20, 0, 150),
-        Position = UDim2.new(0, 10, 0, yPos),
-        BackgroundColor3 = MatrixColors.LightBackground,
-        BorderSizePixel = 0,
-        ZIndex = 13
-    }, parent)
+    -- Hide all tab frames and reset button colors
+    for tabName, frame in pairs(self.TabFrames) do
+        frame.Visible = (tabName == name)
+        self.TabButtons[tabName].BackgroundColor3 = (tabName == name) and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(20, 20, 25)
+        self.TabButtons[tabName].TextColor3 = (tabName == name) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+    end
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(0, 6)
-    }, section)
-    
-    local sectionTitle = createUIElement("TextLabel", {
-        Size = UDim2.new(1, -20, 0, 30),
-        Position = UDim2.new(0, 10, 0, 0),
-        BackgroundTransparency = 1,
-        Text = title,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 14
-    }, section)
-    
-    local sectionContainer = createUIElement("Frame", {
-        Size = UDim2.new(1, -20, 1, -40),
-        Position = UDim2.new(0, 10, 0, 30),
-        BackgroundTransparency = 1,
-        ZIndex = 14
-    }, section)
-    
-    return section, sectionContainer
+    self.CurrentTab = name
 end
 
--- Create a modern toggle button function
-local function createToggle(name, parent, callback, initialState)
-    local toggleCount = #parent:GetChildren()
-    local toggleContainer = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 30),
-        Position = UDim2.new(0, 0, 0, toggleCount * 35),
-        BackgroundTransparency = 1,
-        ZIndex = 15
-    }, parent)
+function SimpleUI:AddToggle(tab, name, default, callback)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Container"
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, -20, 0, 30)
     
-    local toggleLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(0.7, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = name,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 13,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 15
-    }, toggleContainer)
+    local y = #self.TabFrames[tab]:GetChildren() * 35
+    container.Position = UDim2.new(0, 10, 0, y)
+    container.Parent = self.TabFrames[tab]
     
-    local toggleBackground = createUIElement("Frame", {
-        Size = UDim2.new(0, 40, 0, 20),
-        Position = UDim2.new(1, -40, 0.5, -10),
-        BackgroundColor3 = initialState and MatrixColors.Accent or MatrixColors.Border,
-        BorderSizePixel = 0,
-        ZIndex = 15
-    }, toggleContainer)
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Font = Enum.Font.SourceSans
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(1, 0)
-    }, toggleBackground)
+    local toggle = Instance.new("Frame")
+    toggle.Name = "Toggle"
+    toggle.BackgroundColor3 = default and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
+    toggle.BorderSizePixel = 0
+    toggle.Position = UDim2.new(1, -40, 0.5, -10)
+    toggle.Size = UDim2.new(0, 40, 0, 20)
+    toggle.Parent = container
     
-    local toggleIndicator = createUIElement("Frame", {
-        Size = UDim2.new(0, 16, 0, 16),
-        Position = UDim2.new(initialState and 0.6 or 0.05, 0, 0.5, -8),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BorderSizePixel = 0,
-        ZIndex = 16
-    }, toggleBackground)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = toggle
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(1, 0)
-    }, toggleIndicator)
+    local indicator = Instance.new("Frame")
+    indicator.Name = "Indicator"
+    indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    indicator.Position = default and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
+    indicator.Size = UDim2.new(0, 16, 0, 16)
+    indicator.BorderSizePixel = 0
+    indicator.Parent = toggle
     
-    -- Click handler
-    local toggleButton = createUIElement("TextButton", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "",
-        ZIndex = 16
-    }, toggleContainer)
+    local indicatorCorner = Instance.new("UICorner")
+    indicatorCorner.CornerRadius = UDim.new(1, 0)
+    indicatorCorner.Parent = indicator
     
-    local toggleActive = initialState
+    local button = Instance.new("TextButton")
+    button.Name = "Button"
+    button.BackgroundTransparency = 1
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.Text = ""
+    button.Parent = container
     
-    toggleButton.MouseButton1Click:Connect(function()
-        toggleActive = not toggleActive
+    local value = default
+    button.MouseButton1Click:Connect(function()
+        value = not value
         
-        -- Animations
-        local indicatorPosition = toggleActive and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
-        local backgroundColor = toggleActive and MatrixColors.Accent or MatrixColors.Border
+        if UNCSupport.TweenService then
+            local tween = game:GetService("TweenService"):Create(
+                indicator, 
+                TweenInfo.new(0.2), 
+                {Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)}
+            )
+            tween:Play()
+        else
+            indicator.Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
+        end
         
-        TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = indicatorPosition}):Play()
-        TweenService:Create(toggleBackground, TweenInfo.new(0.2), {BackgroundColor3 = backgroundColor}):Play()
-        
-        -- Callback
-        callback(toggleActive)
+        toggle.BackgroundColor3 = value and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
+        callback(value)
     end)
     
-    return toggleContainer, function(state)
-        toggleActive = state
-        local indicatorPosition = toggleActive and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
-        local backgroundColor = toggleActive and MatrixColors.Accent or MatrixColors.Border
-        
-        toggleIndicator.Position = indicatorPosition
-        toggleBackground.BackgroundColor3 = backgroundColor
+    -- Return function to update state
+    return function(newValue)
+        value = newValue
+        indicator.Position = value and UDim2.new(0.6, 0, 0.5, -8) or UDim2.new(0.05, 0, 0.5, -8)
+        toggle.BackgroundColor3 = value and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(50, 50, 55)
     end
 end
 
--- Create a slider function
-local function createSlider(name, parent, min, max, initialValue, callback, suffix)
-    suffix = suffix or ""
-    local sliderCount = #parent:GetChildren()
-    local sliderContainer = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 50),
-        Position = UDim2.new(0, 0, 0, sliderCount * 55),
-        BackgroundTransparency = 1,
-        ZIndex = 15
-    }, parent)
+function SimpleUI:AddSlider(tab, name, min, max, default, callback)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Container"
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, -20, 0, 40)
     
-    local sliderLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(1, 0, 0, 20),
-        BackgroundTransparency = 1,
-        Text = name,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 13,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 15
-    }, sliderContainer)
+    local y = #self.TabFrames[tab]:GetChildren() * 45
+    container.Position = UDim2.new(0, 10, 0, y)
+    container.Parent = self.TabFrames[tab]
     
-    local valueLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(0, 40, 0, 20),
-        Position = UDim2.new(1, -40, 0, 0),
-        BackgroundTransparency = 1,
-        Text = tostring(initialValue) .. suffix,
-        TextColor3 = MatrixColors.Accent,
-        TextSize = 13,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        ZIndex = 15
-    }, sliderContainer)
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.Size = UDim2.new(0.5, 0, 0, 20)
+    label.Font = Enum.Font.SourceSans
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
     
-    local sliderTrack = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 6),
-        Position = UDim2.new(0, 0, 0.7, 0),
-        BackgroundColor3 = MatrixColors.Border,
-        BorderSizePixel = 0,
-        ZIndex = 15
-    }, sliderContainer)
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "Value"
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    valueLabel.Size = UDim2.new(0.5, 0, 0, 20)
+    valueLabel.Font = Enum.Font.SourceSans
+    valueLabel.Text = tostring(default)
+    valueLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
+    valueLabel.TextSize = 14
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = container
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(1, 0)
-    }, sliderTrack)
+    local sliderBG = Instance.new("Frame")
+    sliderBG.Name = "SliderBG"
+    sliderBG.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    sliderBG.BorderSizePixel = 0
+    sliderBG.Position = UDim2.new(0, 0, 0, 25)
+    sliderBG.Size = UDim2.new(1, 0, 0, 6)
+    sliderBG.Parent = container
+    
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(1, 0)
+    sliderCorner.Parent = sliderBG
     
     -- Calculate initial fill percentage
-    local initialPercent = (initialValue - min) / (max - min)
+    local percent = (default - min) / (max - min)
     
-    local sliderFill = createUIElement("Frame", {
-        Size = UDim2.new(initialPercent, 0, 1, 0),
-        BackgroundColor3 = MatrixColors.Accent,
-        BorderSizePixel = 0,
-        ZIndex = 16
-    }, sliderTrack)
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "SliderFill"
+    sliderFill.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    sliderFill.Parent = sliderBG
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(1, 0)
-    }, sliderFill)
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = sliderFill
     
-    local sliderKnob = createUIElement("Frame", {
-        Size = UDim2.new(0, 14, 0, 14),
-        Position = UDim2.new(initialPercent, -7, 0.5, -7),
-        BackgroundColor3 = MatrixColors.Text,
-        BorderSizePixel = 0,
-        ZIndex = 17
-    }, sliderTrack)
+    local sliderButton = Instance.new("TextButton")
+    sliderButton.Name = "SliderButton"
+    sliderButton.BackgroundTransparency = 1
+    sliderButton.Position = UDim2.new(0, 0, 0, -5)
+    sliderButton.Size = UDim2.new(1, 0, 0, 16)
+    sliderButton.Text = ""
+    sliderButton.Parent = sliderBG
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(1, 0)
-    }, sliderKnob)
+    -- Current value
+    local value = default
     
-    -- Slider Interaction
-    local isDragging = false
-    
-    -- Create invisible button for better interaction
-    local sliderButton = createUIElement("TextButton", {
-        Size = UDim2.new(1, 0, 1, 10),
-        Position = UDim2.new(0, 0, 0, -5),
-        BackgroundTransparency = 1,
-        Text = "",
-        ZIndex = 18
-    }, sliderTrack)
-    
+    -- Update function
     local function updateSlider(input)
-        local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
-        local newValue = min + (max - min) * relativeX
+        local relX = math.clamp((input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X, 0, 1)
+        local newValue = min + (max - min) * relX
+        newValue = math.floor(newValue * 10) / 10 -- Round to 1 decimal
         
-        -- Round to 1 decimal place
-        newValue = math.floor(newValue * 10) / 10
+        value = newValue
+        percent = (value - min) / (max - min)
         
-        sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
-        sliderKnob.Position = UDim2.new(relativeX, -7, 0.5, -7)
-        valueLabel.Text = tostring(newValue) .. suffix
-        callback(newValue)
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        valueLabel.Text = tostring(value)
+        callback(value)
     end
     
+    -- Slider input handling
+    local dragging = false
+    
     sliderButton.MouseButton1Down:Connect(function(input)
-        isDragging = true
+        dragging = true
         updateSlider(input)
     end)
     
     UserInputService.InputChanged:Connect(function(input)
-        if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             updateSlider(input)
         end
     end)
     
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isDragging = false
+            dragging = false
         end
     end)
     
-    return sliderContainer, function(newValue)
-        local newPercent = (newValue - min) / (max - min)
-        sliderFill.Size = UDim2.new(newPercent, 0, 1, 0)
-        sliderKnob.Position = UDim2.new(newPercent, -7, 0.5, -7)
-        valueLabel.Text = tostring(newValue) .. suffix
+    -- Return function to update value
+    return function(newValue)
+        value = newValue
+        percent = (value - min) / (max - min)
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        valueLabel.Text = tostring(value)
     end
 end
 
--- Create a keybind selector
-local function createKeybind(name, parent, initialKey, callback)
-    local keybindCount = #parent:GetChildren()
-    local keybindContainer = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 30),
-        Position = UDim2.new(0, 0, 0, keybindCount * 35),
-        BackgroundTransparency = 1,
-        ZIndex = 15
-    }, parent)
+-- Feature configuration
+local Config = {
+    Aimbot = {
+        Enabled = false,
+        Key = Enum.UserInputType.MouseButton2,
+        KeyMode = "Hold",
+        HitPart = "Head",
+        Team = false,
+        Wall = false,
+        FOVSize = 100,
+        ShowFOV = true,
+        FOVColor = Color3.fromRGB(255, 255, 255)
+    },
+    ESP = {
+        Enabled = false,
+        BoxEnabled = false,
+        BoxColor = Color3.fromRGB(255, 0, 0),
+        NameEnabled = false,
+        NameColor = Color3.fromRGB(255, 255, 255),
+        DistanceEnabled = false,
+        DistanceColor = Color3.fromRGB(255, 255, 255),
+        TracerEnabled = false,
+        TracerColor = Color3.fromRGB(255, 0, 0),
+        TeamColor = false,
+        TeamCheck = false
+    },
+    TriggerBot = {
+        Enabled = false,
+        Key = Enum.UserInputType.MouseButton1,
+        Delay = 50,
+        FOVSize = 10
+    },
+    Misc = {
+        NoRecoil = false,
+        AutoHeal = false,
+        SpeedEnabled = false,
+        SpeedType = "Normal", -- "Normal" or "CFrame"
+        SpeedValue = 16,
+        CFrameSpeed = 1,
+        JumpHeight = 50,
+        InfiniteJump = false
+    },
+    Keybinds = {
+        ToggleUI = Enum.KeyCode.Insert
+    }
+}
+
+-- Create the UI
+local UI = SimpleUI.new("Matrix | Evade.CC")
+
+-- Create Tabs
+local AimbotTab = UI:AddTab("Aimbot")
+local ESPTab = UI:AddTab("ESP")
+local TriggerTab = UI:AddTab("TriggerBot")
+local MiscTab = UI:AddTab("Misc")
+local SettingsTab = UI:AddTab("Settings")
+
+-- Aimbot Tab
+local aimbotToggle = UI:AddToggle(AimbotTab.Name, "Enabled", Config.Aimbot.Enabled, function(value)
+    Config.Aimbot.Enabled = value
+end)
+
+local fovSizeSlider = UI:AddSlider(AimbotTab.Name, "FOV Size", 10, 500, Config.Aimbot.FOVSize, function(value)
+    Config.Aimbot.FOVSize = value
+end)
+
+local showFOVToggle = UI:AddToggle(AimbotTab.Name, "Show FOV", Config.Aimbot.ShowFOV, function(value)
+    Config.Aimbot.ShowFOV = value
+end)
+
+local teamCheckToggle = UI:AddToggle(AimbotTab.Name, "Team Check", Config.Aimbot.Team, function(value)
+    Config.Aimbot.Team = value
+end)
+
+local wallCheckToggle = UI:AddToggle(AimbotTab.Name, "Wall Check", Config.Aimbot.Wall, function(value)
+    Config.Aimbot.Wall = value
+end)
+
+-- ESP Tab
+local espToggle = UI:AddToggle(ESPTab.Name, "Enabled", Config.ESP.Enabled, function(value)
+    Config.ESP.Enabled = value
+end)
+
+local boxToggle = UI:AddToggle(ESPTab.Name, "Boxes", Config.ESP.BoxEnabled, function(value)
+    Config.ESP.BoxEnabled = value
+end)
+
+local nameToggle = UI:AddToggle(ESPTab.Name, "Names", Config.ESP.NameEnabled, function(value)
+    Config.ESP.NameEnabled = value
+end)
+
+local distanceToggle = UI:AddToggle(ESPTab.Name, "Distance", Config.ESP.DistanceEnabled, function(value)
+    Config.ESP.DistanceEnabled = value
+end)
+
+local tracerToggle = UI:AddToggle(ESPTab.Name, "Tracers", Config.ESP.TracerEnabled, function(value)
+    Config.ESP.TracerEnabled = value
+end)
+
+local teamColorToggle = UI:AddToggle(ESPTab.Name, "Team Colors", Config.ESP.TeamColor, function(value)
+    Config.ESP.TeamColor = value
+end)
+
+local espTeamCheckToggle = UI:AddToggle(ESPTab.Name, "Team Check", Config.ESP.TeamCheck, function(value)
+    Config.ESP.TeamCheck = value
+end)
+
+-- TriggerBot Tab
+local triggerToggle = UI:AddToggle(TriggerTab.Name, "Enabled", Config.TriggerBot.Enabled, function(value)
+    Config.TriggerBot.Enabled = value
+end)
+
+local triggerDelaySlider = UI:AddSlider(TriggerTab.Name, "Delay (ms)", 0, 500, Config.TriggerBot.Delay, function(value)
+    Config.TriggerBot.Delay = value
+end)
+
+local triggerFOVSlider = UI:AddSlider(TriggerTab.Name, "FOV Size", 5, 100, Config.TriggerBot.FOVSize, function(value)
+    Config.TriggerBot.FOVSize = value
+end)
+
+-- Misc Tab
+local speedToggle = UI:AddToggle(MiscTab.Name, "Speed Enabled", Config.Misc.SpeedEnabled, function(value)
+    Config.Misc.SpeedEnabled = value
+end)
+
+local speedTypeToggle = UI:AddToggle(MiscTab.Name, "CFrame Speed", Config.Misc.SpeedType == "CFrame", function(value)
+    Config.Misc.SpeedType = value and "CFrame" or "Normal"
+end)
+
+local speedSlider = UI:AddSlider(MiscTab.Name, "Walk Speed", 16, 100, Config.Misc.SpeedValue, function(value)
+    Config.Misc.SpeedValue = value
+end)
+
+local cframeSpeedSlider = UI:AddSlider(MiscTab.Name, "CFrame Speed", 0.1, 10, Config.Misc.CFrameSpeed, function(value)
+    Config.Misc.CFrameSpeed = value
+end)
+
+local jumpHeightSlider = UI:AddSlider(MiscTab.Name, "Jump Height", 50, 200, Config.Misc.JumpHeight, function(value)
+    Config.Misc.JumpHeight = value
+end)
+
+local infJumpToggle = UI:AddToggle(MiscTab.Name, "Infinite Jump", Config.Misc.InfiniteJump, function(value)
+    Config.Misc.InfiniteJump = value
+end)
+
+local noRecoilToggle = UI:AddToggle(MiscTab.Name, "No Recoil", Config.Misc.NoRecoil, function(value)
+    Config.Misc.NoRecoil = value
+end)
+
+local autoHealToggle = UI:AddToggle(MiscTab.Name, "Auto Heal", Config.Misc.AutoHeal, function(value)
+    Config.Misc.AutoHeal = value
+end)
+
+-- Implementation section
+
+-- UI Toggle
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Config.Keybinds.ToggleUI then
+        UI.Main.Visible = not UI.Main.Visible
+    end
+end)
+
+-- FOV Circles (Simple version for UNC support)
+local FOVCircles = {}
+
+if UNCSupport.DrawingLibrary then
+    -- Aimbot FOV
+    FOVCircles.Aimbot = Drawing.new("Circle")
+    FOVCircles.Aimbot.Thickness = 1
+    FOVCircles.Aimbot.NumSides = 36
+    FOVCircles.Aimbot.Radius = Config.Aimbot.FOVSize
+    FOVCircles.Aimbot.Filled = false
+    FOVCircles.Aimbot.Visible = Config.Aimbot.ShowFOV and Config.Aimbot.Enabled
+    FOVCircles.Aimbot.Transparency = 0.8
+    FOVCircles.Aimbot.Color = Config.Aimbot.FOVColor
     
-    local keybindLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(0.7, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = name,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 13,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 15
-    }, keybindContainer)
+    -- TriggerBot FOV
+    FOVCircles.TriggerBot = Drawing.new("Circle")
+    FOVCircles.TriggerBot.Thickness = 1
+    FOVCircles.TriggerBot.NumSides = 36
+    FOVCircles.TriggerBot.Radius = Config.TriggerBot.FOVSize
+    FOVCircles.TriggerBot.Filled = false
+    FOVCircles.TriggerBot.Visible = Config.TriggerBot.Enabled
+    FOVCircles.TriggerBot.Transparency = 0.8
+    FOVCircles.TriggerBot.Color = Color3.fromRGB(255, 255, 0)
+end
+
+-- Function to update FOV circles
+local function UpdateFOVCircles()
+    if not UNCSupport.DrawingLibrary then return end
     
-    local keybindButton = createUIElement("TextButton", {
-        Size = UDim2.new(0, 70, 0, 20),
-        Position = UDim2.new(1, -70, 0.5, -10),
-        BackgroundColor3 = MatrixColors.Border,
-        BorderSizePixel = 0,
-        Text = initialKey.Name,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 12,
-        Font = Enum.Font.Gotham,
-        ZIndex = 15
-    }, keybindContainer)
+    FOVCircles.Aimbot.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircles.Aimbot.Radius = Config.Aimbot.FOVSize
+    FOVCircles.Aimbot.Visible = Config.Aimbot.ShowFOV and Config.Aimbot.Enabled
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(0, 4)
-    }, keybindButton)
+    FOVCircles.TriggerBot.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircles.TriggerBot.Radius = Config.TriggerBot.FOVSize
+    FOVCircles.TriggerBot.Visible = Config.TriggerBot.Enabled
+end
+
+-- Update FOV circles when camera changes
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateFOVCircles)
+UpdateFOVCircles()
+
+-- Speed modification
+local function UpdateSpeed()
+    if not Character or not Humanoid then return end
     
-    local currentKey = initialKey
-    local isListening = false
-    
-    keybindButton.MouseButton1Click:Connect(function()
-        isListening = true
-        keybindButton.Text = "..."
-        keybindButton.BackgroundColor3 = MatrixColors.Accent
-    end)
-    
-    UserInputService.InputBegan:Connect(function(input)
-        if isListening and input.UserInputType == Enum.UserInputType.Keyboard then
-            currentKey = input.KeyCode
-            keybindButton.Text = input.KeyCode.Name
-            keybindButton.BackgroundColor3 = MatrixColors.Border
-            isListening = false
-            callback(input.KeyCode)
+    if Config.Misc.SpeedEnabled then
+        if Config.Misc.SpeedType == "Normal" then
+            Humanoid.WalkSpeed = Config.Misc.SpeedValue
         end
-    end)
-    
-    return keybindContainer, function(newKey)
-        currentKey = newKey
-        keybindButton.Text = newKey.Name
+        -- CFrame speed is handled in the RunService loop
+    else
+        Humanoid.WalkSpeed = 16 -- Default
     end
+    
+    -- Jump height
+    Humanoid.JumpPower = Config.Misc.JumpHeight
 end
 
--- Create a dropdown selector
-local function createDropdown(name, parent, options, initialValue, callback)
-    local dropdownCount = #parent:GetChildren()
+-- Infinite Jump
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
     
-    local dropdownContainer = createUIElement("Frame", {
-        Size = UDim2.new(1, 0, 0, 30),
-        Position = UDim2.new(0, 0, 0, dropdownCount * 35),
-        BackgroundTransparency = 1,
-        ZIndex = 15
-    }, parent)
+    if Config.Misc.InfiniteJump and input.KeyCode == Enum.KeyCode.Space then
+        if Character and Humanoid then
+            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Main update loop
+RunService.RenderStepped:Connect(function()
+    -- Update player movement
+    UpdateSpeed()
     
-    local dropdownLabel = createUIElement("TextLabel", {
-        Size = UDim2.new(0.5, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = name,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 13,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 15
-    }, dropdownContainer)
+    -- CFrame Speed implementation
+    if Config.Misc.SpeedEnabled and Config.Misc.SpeedType == "CFrame" then
+        if Character and HRP and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            HRP.CFrame = HRP.CFrame + (Camera.CFrame.LookVector * Config.Misc.CFrameSpeed)
+        end
+    end
     
-    local dropdownButton = createUIElement("TextButton", {
-        Size = UDim2.new(0.5, -10, 1, -6),
-        Position = UDim2.new(0.5, 5, 0, 3),
-        BackgroundColor3 = MatrixColors.Border,
-        BorderSizePixel = 0,
-        Text = initialValue,
-        TextColor3 = MatrixColors.Text,
-        TextSize = 12,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 15
-    }, dropdownContainer)
+    -- Update FOV circles
+    UpdateFOVCircles()
+end)
+
+-- ESP implementation (simplified for UNC compatibility)
+if UNCSupport.DrawingLibrary then
+    local ESPObjects = {}
     
-    createUIElement("UIPadding", {
-        PaddingLeft = UDim.new(0, 8)
-    }, dropdownButton)
+    local function ClearESP()
+        for _, objects in pairs(ESPObjects) do
+            for _, object in pairs(objects) do
+                object:Remove()
+            end
+        end
+        ESPObjects = {}
+    end
     
-    createUIElement("UICorner", {
-        CornerRadius = UDim.new(0, 4)
-    }, dropdownButton)
+    local function CreateESP(player)
+        if player == LocalPlayer then return end
+        
+        ESPObjects[player] = {
+            Box = Drawing.new("Square"),
+            Name = Drawing.new("Text"),
+            Distance = Drawing.new("Text"),
+            Tracer = Drawing.new("Line")
+        }
+        
+        -- Box settings
+        ESPObjects[player].Box.Thickness = 1
+        ESPObjects[player].Box.Filled = false
+        ESPObjects[player].Box.Color = Config.ESP.BoxColor
+        ESPObjects[player].Box.Transparency = 0.8
+        ESPObjects[player].Box.Visible = false
+        
+        -- Name settings
+        ESPObjects[player].Name.Size = 14
+        ESPObjects[player].Name.Center = true
+        ESPObjects[player].Name.Outline = true
+        ESPObjects[player].Name.Color = Config.ESP.NameColor
+        ESPObjects[player].Name.Transparency = 0.8
+        ESPObjects[player].Name.Visible = false
+        
+        -- Distance settings
+        ESPObjects[player].Distance.Size = 13
+        ESPObjects[player].Distance.Center = true
+        ESPObjects[player].Distance.Outline = true
+        ESPObjects[player].Distance.Color = Config.ESP.DistanceColor
+        ESPObjects[player].Distance.Transparency = 0.8
+        ESPObjects[player].Distance.Visible = false
+        
+        -- Tracer settings
+        ESPObjects[player].Tracer.Thickness = 1
+        ESPObjects[player].Tracer.Color = Config.ESP.TracerColor
+        ESPObjects[player].Tracer.Transparency = 0.8
+        ESPObjects[player].Tracer.Visible = false
+    end
+    
+    -- Create ESP for existing players
+    for _, player in ipairs(Players:GetPlayers
