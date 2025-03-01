@@ -1,823 +1,714 @@
---//=========================================================\\--
---||                    MATRIXHUB V3                         ||--
---||        Advanced Targeting and Movement System           ||--
---||           (C++ Style UI | Professional Build)           ||--
---\\=========================================================//--
-
--- Core Service References
+--// Evade.cc - Optimized PvP Script
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local StarterGui = game:GetService("StarterGui")
-local Workspace = game:GetService("Workspace")
-
--- Nezur.io compatibility fix - Remove VirtualUser reference
--- local VirtualUser = game:GetService("VirtualUser")
-
--- Add Stats service with error handling
-local Stats = nil
-pcall(function() 
-    Stats = game:GetService("Stats")
-end)
-
--- Player References
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
+local Camera = game.Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
+local Drawing = Drawing or nil
 
--- Version Information
-local VERSION = "3.0.2"
-local BUILD_DATE = "01-03-2025"
-local BUILD_ID = "MHB-" .. HttpService:GenerateGUID(false):sub(1, 8)
-
--- Memory Management
-local memory = {
-    connections = {},
-    drawings = {},
-    hooks = {},
-    cache = {},
-    targets = {},
-    config = {}
+-- Feature configuration
+local Config = {
+    Aimbot = {
+        Enabled = false,
+        Key = "MouseButton2",
+        KeyMode = "Hold",
+        HitPart = "Head",
+        Team = false,
+        Wall = false,
+        Prediction = {
+            Enabled = true,
+            Value = 0.165
+        }
+    },
+    SilentAim = {
+        Enabled = false,
+        HitChance = 100
+    },
+    TriggerBot = {
+        Enabled = false,
+        Delay = 50,
+        Radius = 43,
+        FOV = 10,
+        Distance = 300,
+        ShowFOV = true
+    },
+    ESP = {
+        Enabled = false,
+        BoxColor = Color3.fromRGB(255, 0, 0),
+        TeamColor = false
+    },
+    Misc = {
+        NoRecoil = false,
+        AutoHeal = false,
+        SpeedEnabled = false,
+        SpeedValue = 1
+    },
+    UI = {
+        Visible = true
+    }
 }
 
--- Performance Optimization
-local math_random = math.random
-local math_randomseed = math.randomseed
-local math_floor = math.floor
-local math_ceil = math.ceil
-local math_sin = math.sin
-local math_cos = math.cos
-local math_tan = math.tan
-local math_abs = math.abs
-local math_rad = math.rad
-local math_deg = math.deg
-local math_min = math.min
-local math_max = math.max
-local math_clamp = math.clamp
-local math_huge = math.huge
-local table_insert = table.insert
-local table_remove = table.remove
-local table_find = table.find
-local table_clear = table.clear
-local string_format = string.format
-local string_sub = string.sub
-local string_match = string.match
-local string_gsub = string.gsub
-local string_lower = string.lower
-local string_upper = string.upper
-local string_len = string.len
-local os_time = os.time
-local os_date = os.date
-local os_clock = os.clock
-local Vector2_new = Vector2.new
-local Vector3_new = Vector3.new
-local CFrame_new = CFrame.new
-local CFrame_Angles = CFrame.Angles
-local Color3_new = Color3.new
-local Color3_fromRGB = Color3.fromRGB
-local Color3_fromHSV = Color3.fromHSV
-local UDim2_new = UDim2.new
-local UDim_new = UDim.new
-local Instance_new = Instance.new
-local Ray_new = Ray.new
-local TweenInfo_new = TweenInfo.new
-local Enum_KeyCode = Enum.KeyCode
-local Enum_UserInputType = Enum.UserInputType
-local Enum_TextXAlignment = Enum.TextXAlignment
-local Enum_ZIndexBehavior = Enum.ZIndexBehavior
-local Enum_Font = Enum.Font
+-- Create a better optimized UI
+local EvadeCC = Instance.new("ScreenGui")
+EvadeCC.Name = "Evade.cc"
+EvadeCC.ResetOnSpawn = false
+EvadeCC.Parent = game:GetService("CoreGui")
 
--- Security System
-local securityToken = HttpService:GenerateGUID(false)
-local encryptionKey = string.sub(HttpService:GenerateGUID(false), 1, 16)
+-- Create a function for UI elements to reduce repetition
+local function createUIElement(className, properties, parent)
+    local element = Instance.new(className)
+    for property, value in pairs(properties) do
+        element[property] = value
+    end
+    element.Parent = parent
+    return element
+end
 
--- Filesystem check and compatibility
-local fileSystemAvailable = true
-local function checkFileSystem()
-    local success = pcall(function()
-        if isfolder and makefolder and writefile and readfile and listfiles and delfile then
-            return true
-        else
-            return false
+-- Main UI Frame
+local MainFrame = createUIElement("Frame", {
+    Size = UDim2.new(0, 400, 0, 330),
+    Position = UDim2.new(0.5, -200, 0.5, -165),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0,
+    Active = true
+}, EvadeCC)
+
+-- Make the UI draggable
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+MainFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale, 
+            startPos.X.Offset + delta.X, 
+            startPos.Y.Scale, 
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Title Bar
+local TitleBar = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+    BorderSizePixel = 0
+}, MainFrame)
+
+-- Title Text
+local TitleText = createUIElement("TextLabel", {
+    Size = UDim2.new(0.5, 0, 1, 0),
+    Position = UDim2.new(0, 10, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "evade.cc",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 18,
+    Font = Enum.Font.SourceSansBold,
+    TextXAlignment = Enum.TextXAlignment.Left
+}, TitleBar)
+
+-- Hide/Show Button
+local HideButton = createUIElement("TextButton", {
+    Size = UDim2.new(0, 60, 0, 20),
+    Position = UDim2.new(1, -70, 0, 5),
+    BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+    BorderSizePixel = 0,
+    Text = "Hide",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 14,
+    Font = Enum.Font.SourceSans
+}, TitleBar)
+
+HideButton.MouseButton1Click:Connect(function()
+    Config.UI.Visible = not Config.UI.Visible
+    if Config.UI.Visible then
+        MainFrame.Size = UDim2.new(0, 400, 0, 330)
+        HideButton.Text = "Hide"
+    else
+        MainFrame.Size = UDim2.new(0, 400, 0, 30)
+        HideButton.Text = "Show"
+    end
+end)
+
+-- Content Frame
+local ContentFrame = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 1, -30),
+    Position = UDim2.new(0, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0
+}, MainFrame)
+
+-- Tab System
+local TabButtons = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+    BorderSizePixel = 0
+}, ContentFrame)
+
+local TabContent = createUIElement("Frame", {
+    Size = UDim2.new(1, 0, 1, -30),
+    Position = UDim2.new(0, 0, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+    BorderSizePixel = 0
+}, ContentFrame)
+
+-- Create Tabs
+local Tabs = {
+    "Aimbot",
+    "Visuals",
+    "Misc",
+    "Settings"
+}
+
+local TabFrames = {}
+local ActiveTab = "Aimbot"
+
+for i, tabName in ipairs(Tabs) do
+    -- Tab Button
+    local TabButton = createUIElement("TextButton", {
+        Size = UDim2.new(0.25, 0, 1, 0),
+        Position = UDim2.new(0.25 * (i-1), 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Text = tabName,
+        TextColor3 = Color3.fromRGB(200, 200, 200),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, TabButtons)
+    
+    -- Tab Content Frame
+    local TabFrame = createUIElement("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        Visible = tabName == ActiveTab,
+        CanvasSize = UDim2.new(0, 0, 2, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y
+    }, TabContent)
+    
+    TabFrames[tabName] = TabFrame
+    
+    -- Tab Button Click
+    TabButton.MouseButton1Click:Connect(function()
+        ActiveTab = tabName
+        for _, frame in pairs(TabFrames) do
+            frame.Visible = false
+        end
+        TabFrame.Visible = true
+        
+        for _, button in ipairs(TabButtons:GetChildren()) do
+            if button:IsA("TextButton") then
+                button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                button.TextColor3 = Color3.fromRGB(200, 200, 200)
+            end
+        end
+        
+        TabButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    
+    -- Set initial active tab
+    if tabName == ActiveTab then
+        TabButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end
+
+-- Create a toggle button function
+local function createToggle(name, parent, callback, initialState)
+    local toggleContainer = createUIElement("Frame", {
+        Size = UDim2.new(0.9, 0, 0, 40),
+        Position = UDim2.new(0.05, 0, 0, #parent:GetChildren() * 45),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, parent)
+    
+    local toggleLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.7, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "  " .. name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, toggleContainer)
+    
+    local toggleButton = createUIElement("Frame", {
+        Size = UDim2.new(0, 40, 0, 20),
+        Position = UDim2.new(0.85, 0, 0.5, -10),
+        BackgroundColor3 = initialState and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(100, 100, 100),
+        BorderSizePixel = 0
+    }, toggleContainer)
+    
+    local toggleIndicator = createUIElement("Frame", {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(initialState and 0.6 or 0, 2, 0, 2),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, toggleButton)
+    
+    toggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local newState = not initialState
+            initialState = newState
+            
+            local targetPosition = newState and UDim2.new(0.6, 0, 0, 2) or UDim2.new(0, 2, 0, 2)
+            local targetColor = newState and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(100, 100, 100)
+            
+            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+            TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+            
+            callback(newState)
         end
     end)
-    return success
+    
+    return toggleContainer
 end
-fileSystemAvailable = checkFileSystem()
 
--- Drawing function compatibility check for Nezur.io
-local drawingAvailable = false
-local function checkDrawing()
-    if Drawing then
-        local success = pcall(function()
-            local testDrawing = Drawing.new("Circle")
-            testDrawing:Remove()
-            return true
-        end)
-        return success
-    end
-    return false
-end
-drawingAvailable = checkDrawing()
-
--- Error Handling and Secure Function Calls
-local function createSecureWrapper(name)
-    return function(func)
-        return function(...)
-            local args = {...}
-            local success, result = pcall(function()
-                return func(unpack(args))
-            end)
+-- Create a slider function
+local function createSlider(name, parent, min, max, initialValue, callback)
+    local sliderContainer = createUIElement("Frame", {
+        Size = UDim2.new(0.9, 0, 0, 40),
+        Position = UDim2.new(0.05, 0, 0, #parent:GetChildren() * 45),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, parent)
+    
+    local sliderLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.5, 0, 0.5, 0),
+        BackgroundTransparency = 1,
+        Text = "  " .. name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, sliderContainer)
+    
+    local valueLabel = createUIElement("TextLabel", {
+        Size = UDim2.new(0.1, 0, 0.5, 0),
+        Position = UDim2.new(0.85, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Text = tostring(initialValue),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, sliderContainer)
+    
+    local sliderTrack = createUIElement("Frame", {
+        Size = UDim2.new(0.7, 0, 0, 4),
+        Position = UDim2.new(0.15, 0, 0.7, 0),
+        BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+        BorderSizePixel = 0
+    }, sliderContainer)
+    
+    local sliderFill = createUIElement("Frame", {
+        Size = UDim2.new((initialValue - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 170, 255),
+        BorderSizePixel = 0
+    }, sliderTrack)
+    
+    local sliderKnob = createUIElement("Frame", {
+        Size = UDim2.new(0, 10, 0, 10),
+        Position = UDim2.new((initialValue - min) / (max - min), -5, 0.5, -5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, sliderTrack)
+    
+    local isDragging = false
+    
+    sliderKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+        end
+    end)
+    
+    sliderTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
             
-            if not success then
-                local errorId = HttpService:GenerateGUID(false):sub(1, 8)
-                warn("[MatrixHub][" .. name .. "][Error:" .. errorId .. "] " .. tostring(result))
-                
-                -- Log error for diagnostics
-                memory.cache.errorLogs = memory.cache.errorLogs or {}
-                table_insert(memory.cache.errorLogs, {
-                    id = errorId,
-                    timestamp = os_time(),
-                    component = name,
-                    message = tostring(result),
-                    stack = debug.traceback()
-                })
+            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local value = min + (max - min) * relativeX
+            value = math.floor(value * 10) / 10 -- Round to 1 decimal place
+            
+            sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
+            sliderKnob.Position = UDim2.new(relativeX, -5, 0.5, -5)
+            valueLabel.Text = tostring(value)
+            callback(value)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local value = min + (max - min) * relativeX
+            value = math.floor(value * 10) / 10 -- Round to 1 decimal place
+            
+            sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
+            sliderKnob.Position = UDim2.new(relativeX, -5, 0.5, -5)
+            valueLabel.Text = tostring(value)
+            callback(value)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
+        end
+    end)
+    
+    return sliderContainer
+end
+
+-- Create Aimbot Tab
+createToggle("Aimbot", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Enabled = state
+end, Config.Aimbot.Enabled)
+
+createToggle("Team Check", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Team = state
+end, Config.Aimbot.Team)
+
+createToggle("Wall Check", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Wall = state
+end, Config.Aimbot.Wall)
+
+createToggle("Velocity Prediction", TabFrames["Aimbot"], function(state)
+    Config.Aimbot.Prediction.Enabled = state
+end, Config.Aimbot.Prediction.Enabled)
+
+createSlider("Prediction Value", TabFrames["Aimbot"], 0, 1, Config.Aimbot.Prediction.Value, function(value)
+    Config.Aimbot.Prediction.Value = value
+end)
+
+createToggle("Silent Aim", TabFrames["Aimbot"], function(state)
+    Config.SilentAim.Enabled = state
+end, Config.SilentAim.Enabled)
+
+-- Create Visuals Tab
+createToggle("ESP", TabFrames["Visuals"], function(state)
+    Config.ESP.Enabled = state
+end, Config.ESP.Enabled)
+
+createToggle("Team Color", TabFrames["Visuals"], function(state)
+    Config.ESP.TeamColor = state
+end, Config.ESP.TeamColor)
+
+createToggle("Trigger Bot", TabFrames["Visuals"], function(state)
+    Config.TriggerBot.Enabled = state
+end, Config.TriggerBot.Enabled)
+
+createToggle("Show FOV", TabFrames["Visuals"], function(state)
+    Config.TriggerBot.ShowFOV = state
+end, Config.TriggerBot.ShowFOV)
+
+createSlider("FOV Size", TabFrames["Visuals"], 10, 100, Config.TriggerBot.Radius, function(value)
+    Config.TriggerBot.Radius = value
+end)
+
+-- Create Misc Tab
+createToggle("No Recoil", TabFrames["Misc"], function(state)
+    Config.Misc.NoRecoil = state
+end, Config.Misc.NoRecoil)
+
+createToggle("Auto Heal", TabFrames["Misc"], function(state)
+    Config.Misc.AutoHeal = state
+end, Config.Misc.AutoHeal)
+
+createToggle("Speed Hack", TabFrames["Misc"], function(state)
+    Config.Misc.SpeedEnabled = state
+end, Config.Misc.SpeedEnabled)
+
+createSlider("Speed Value", TabFrames["Misc"], 1, 10, Config.Misc.SpeedValue, function(value)
+    Config.Misc.SpeedValue = value
+end)
+
+-- Notification Function
+local function createNotification(text)
+    local Notification = createUIElement("Frame", {
+        Size = UDim2.new(0, 200, 0, 50),
+        Position = UDim2.new(1, -220, 0, 80),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0
+    }, EvadeCC)
+    
+    local NotificationText = createUIElement("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14,
+        Font = Enum.Font.SourceSans
+    }, Notification)
+    
+    -- Animation
+    Notification.Position = UDim2.new(1, 20, 0, 80)
+    TweenService:Create(Notification, TweenInfo.new(0.5), {Position = UDim2.new(1, -220, 0, 80)}):Play()
+    
+    task.delay(3, function()
+        TweenService:Create(Notification, TweenInfo.new(0.5), {Position = UDim2.new(1, 20, 0, 80)}):Play()
+        task.delay(0.5, function()
+            Notification:Destroy()
+        end)
+    end)
+end
+
+-- Aimbot Function
+local function getClosestTarget()
+    local closest, distance = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            -- Team Check
+            if Config.Aimbot.Team and player.Team == LocalPlayer.Team then
+                continue
             end
             
-            return success and result or nil
+            -- Wall Check
+            if Config.Aimbot.Wall then
+                local ray = Ray.new(Camera.CFrame.Position, (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).Unit * 300)
+                local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+                if hit and not hit:IsDescendantOf(player.Character) then
+                    continue
+                end
+            end
+            
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                if mag < distance then
+                    closest, distance = player, mag
+                end
+            end
         end
     end
+    return closest
 end
 
-local secureUI = createSecureWrapper("UI")
-local secureAim = createSecureWrapper("Aim")
-local secureESP = createSecureWrapper("ESP")
-local secureMovement = createSecureWrapper("Movement")
-local secureMisc = createSecureWrapper("Misc")
-local secureConfig = createSecureWrapper("Config")
-
---//================ UTILITY FUNCTIONS ================\\--
-local Utility = {}
-
--- String Encryption/Decryption for Config
-Utility.Encrypt = function(str)
-    if not str then return "" end
-    local result = ""
-    for i = 1, #str do
-        local char = string.byte(str, i)
-        local keyChar = string.byte(encryptionKey, (i % #encryptionKey) + 1)
-        result = result .. string.char(bit32.bxor(char, keyChar))
-    end
-    return result
-end
-
-Utility.Decrypt = function(str)
-    return Utility.Encrypt(str) -- XOR encryption is symmetrical
-end
-
--- Vector Calculations
-Utility.GetDistance = function(pos1, pos2)
-    return (pos1 - pos2).Magnitude
-end
-
-Utility.GetDirection = function(origin, target)
-    return (target - origin).Unit
-end
-
--- Validation Functions
-Utility.IsAlive = function(player)
-    if not player or not player.Character then return false end
-    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-    return humanoid and humanoid.Health > 0
-end
-
-Utility.IsVisible = function(character, part)
-    if not character or not part then return false end
-    
-    local origin = Camera.CFrame.Position
-    local direction = (part.Position - origin).Unit
-    
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-    
-    local result = Workspace:Raycast(origin, direction * 9999, rayParams)
-    
-    return result and result.Instance and (result.Instance:IsDescendantOf(character) or result.Instance == part)
-end
-
-Utility.IsTeammate = function(player)
-    if not player or player == LocalPlayer then return false end
-    
-    -- Universal Team Check
-    if player.Team and LocalPlayer.Team then
-        return player.Team == LocalPlayer.Team
+-- Aimbot Logic
+local function aimAt(target)
+    if not target or not target.Character or not target.Character:FindFirstChild(Config.Aimbot.HitPart) then
+        return
     end
     
-    -- FFA Game Detection (based on character colors)
-    if player.Character and LocalPlayer.Character then
-        local playerTorso = player.Character:FindFirstChild("HumanoidRootPart")
-        local localTorso = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        
-        if playerTorso and localTorso and playerTorso:FindFirstChild("BrickColor") and localTorso:FindFirstChild("BrickColor") then
-            return playerTorso.BrickColor == localTorso.BrickColor
+    local targetPart = target.Character[Config.Aimbot.HitPart]
+    local targetPos = targetPart.Position
+    
+    if Config.Aimbot.Prediction.Enabled and target.Character:FindFirstChild("HumanoidRootPart") then
+        local velocity = target.Character.HumanoidRootPart.Velocity
+        targetPos = targetPos + velocity * Config.Aimbot.Prediction.Value
+    end
+    
+    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+end
+
+-- Silent Aim Hook
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    if Config.SilentAim.Enabled and (method == "FireServer" or method == "InvokeServer") and self.Name == "RemoteEvent" then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and math.random(1, 100) <= Config.SilentAim.HitChance then
+            args[1] = target.Character.HumanoidRootPart.Position
         end
     end
     
-    return false
+    return oldNamecall(self, unpack(args))
+end)
+
+-- TriggerBot FOV Circle
+local FOVCircle
+if Drawing then
+    FOVCircle = Drawing.new("Circle")
+    FOVCircle.Thickness = 1
+    FOVCircle.NumSides = 100
+    FOVCircle.Radius = Config.TriggerBot.Radius
+    FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+    FOVCircle.Filled = false
+    FOVCircle.Transparency = 0.5
+    FOVCircle.Visible = false
 end
 
--- Game Analysis
-Utility.AnalyzeGame = function()
-    local gameData = {
-        weaponSystem = "Unknown",
-        movementType = "Standard",
-        hasFallDamage = false,
-        teamBased = true,
-        supportsSilentAim = true
-    }
+-- TriggerBot Function
+local function triggerBot()
+    if not Config.TriggerBot.Enabled then return end
     
-    -- Check for common weapon systems
-    if ReplicatedStorage:FindFirstChild("Weapons") then
-        gameData.weaponSystem = "Standard"
-    elseif ReplicatedStorage:FindFirstChild("Framework") then
-        gameData.weaponSystem = "Framework"
-    elseif ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Gun") then
-        gameData.weaponSystem = "Modular"
-    end
-    
-    -- Check movement type
-    if Workspace:FindFirstChild("Gravity") then
-        if Workspace.Gravity < 196.2 then
-            gameData.movementType = "LowGravity"
-        end
-    end
-    
-    -- Check for anti-cheat systems (simplified detection)
-    memory.cache.antiCheatDetected = false
-    
-    for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-        if string.match(string.lower(v.Name), "anti") and string.match(string.lower(v.Name), "cheat") or
-           string.match(string.lower(v.Name), "security") or string.match(string.lower(v.Name), "report") then
-            memory.cache.antiCheatDetected = true
-            break
-        end
-    end
-    
-    return gameData
-end
-
--- Player Analysis
-Utility.AnalyzePlayers = function()
-    local result = {
-        averageHealth = 0,
-        commonParts = {},
-        playerCount = 0
-    }
-    
-    local partCounts = {}
-    local totalHealth = 0
-    local playerCount = 0
+    local mousePosition = UserInputService:GetMouseLocation()
+    local closestPart = nil
+    local closestDistance = math.huge
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            playerCount = playerCount + 1
-            
-            -- Analyze health
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                totalHealth = totalHealth + humanoid.Health
-            end
-            
-            -- Analyze character structure
             for _, part in pairs(player.Character:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    partCounts[part.Name] = (partCounts[part.Name] or 0) + 1
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+                        local distanceFromCamera = (part.Position - Camera.CFrame.Position).Magnitude
+                        
+                        if distance <= Config.TriggerBot.Radius and distanceFromCamera <= Config.TriggerBot.Distance and distance < closestDistance then
+                            closestDistance = distance
+                            closestPart = part
+                        end
+                    end
                 end
             end
         end
     end
     
-    -- Calculate average health
-    if playerCount > 0 then
-        result.averageHealth = totalHealth / playerCount
-        result.playerCount = playerCount
-        
-        -- Find common parts
-        for part, count in pairs(partCounts) do
-            if count >= playerCount * 0.8 then -- If 80% of players have this part
-                table_insert(result.commonParts, part)
+    if closestPart then
+        task.delay(Config.TriggerBot.Delay / 1000, function()
+            mouse1click()
+        end)
+    end
+    
+    if FOVCircle and Config.TriggerBot.ShowFOV then
+        FOVCircle.Position = mousePosition
+        FOVCircle.Radius = Config.TriggerBot.Radius
+        FOVCircle.Visible = true
+    elseif FOVCircle then
+        FOVCircle.Visible = false
+    end
+end
+
+-- ESP Function
+local function updateESP()
+    if not Config.ESP.Enabled then
+        for _, esp in pairs(game.CoreGui:GetChildren()) do
+            if esp.Name == "ESPBox" then
+                esp:Destroy()
+            end
+        end
+        return
+    end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local existingESP = game.CoreGui:FindFirstChild("ESPBox_" .. player.Name)
+            
+            if not existingESP then
+                local espBox = Instance.new("BoxHandleAdornment")
+                espBox.Name = "ESPBox_" .. player.Name
+                espBox.Adornee = player.Character.HumanoidRootPart
+                espBox.Size = Vector3.new(4, 6, 4)
+                espBox.AlwaysOnTop = true
+                espBox.ZIndex = 10
+                espBox.Parent = game.CoreGui
+                
+                -- Team Color Logic
+                if Config.ESP.TeamColor and player.Team then
+                    espBox.Color3 = player.Team.TeamColor.Color
+                else
+                    espBox.Color3 = Config.ESP.BoxColor
+                end
+            elseif Config.ESP.TeamColor and player.Team then
+                existingESP.Color3 = player.Team.TeamColor.Color
             end
         end
     end
     
-    return result
-end
-
--- Performance Monitoring
-Utility.StartPerformanceMonitoring = function()
-    memory.cache.performanceStats = {
-        fps = 0,
-        ping = 0,
-        memoryUsage = 0,
-        startTime = os_clock()
-    }
-    
-    local frameCount = 0
-    local lastUpdate = os_clock()
-    
-    memory.connections.performanceMonitor = RunService.RenderStepped:Connect(function()
-        frameCount = frameCount + 1
-        
-        local currentTime = os_clock()
-        local elapsed = currentTime - lastUpdate
-        
-        if elapsed >= 1 then
-            memory.cache.performanceStats.fps = math_floor(frameCount / elapsed)
-            memory.cache.performanceStats.ping = LocalPlayer:GetNetworkPing() * 1000
-            
-            -- Fixed Stats service usage with error handling
-            if Stats then
-                pcall(function()
-                    memory.cache.performanceStats.memoryUsage = math_floor(Stats:GetTotalMemoryUsageInMB())
-                end)
-            else
-                memory.cache.performanceStats.memoryUsage = 0
+    -- Clean up ESP for non-existent players
+    for _, esp in pairs(game.CoreGui:GetChildren()) do
+        if esp.Name:find("ESPBox_") then
+            local playerName = esp.Name:gsub("ESPBox_", "")
+            if not Players:FindFirstChild(playerName) then
+                esp:Destroy()
             end
-            
-            frameCount = 0
-            lastUpdate = currentTime
         end
-    end)
+    end
 end
 
---//================ CORE SETTINGS SYSTEM ================\\--
-local Settings = {
-    -- Core System Settings
-    UI = {
-        Enabled = true,
-        Theme = {
-            Primary = Color3_fromRGB(24, 24, 36),     -- Dark Background
-            Secondary = Color3_fromRGB(12, 12, 24),   -- Darker Background
-            Accent = Color3_fromRGB(0, 120, 215),     -- Blue Accent
-            Text = Color3_fromRGB(230, 230, 230),     -- Light Text
-            Highlight = Color3_fromRGB(0, 155, 240),  -- Highlight Blue
-            Error = Color3_fromRGB(225, 70, 70),      -- Error Red
-            Success = Color3_fromRGB(70, 225, 70),    -- Success Green
-            Warning = Color3_fromRGB(225, 225, 70)    -- Warning Yellow
-        },
-        Font = Enum_Font.Code,
-        FontSize = {
-            Title = 18,
-            Subtitle = 16,
-            Regular = 14,
-            Small = 12
-        },
-        Animation = {
-            Enabled = true,
-            Speed = 0.3
-        },
-        Draggable = true,
-        Minimizable = true,
-        Transparency = 0.95,
-        ShowPerformance = true,
-        ShowTooltips = true,
-        ShowKeybinds = true,
-        Scale = 1.0
-    },
-    
-    -- Aimbot Settings
-    Aimbot = {
-        Enabled = false,
-        ToggleKey = Enum_KeyCode.Q,
-        HoldKey = Enum_KeyCode.E,
-        HoldMode = true,
-        TeamCheck = true,
-        VisibilityCheck = false,
-        TargetPart = "Head",
-        FallbackParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
-        FOV = 250,
-        ShowFOV = true,
-        FOVColor = Color3_fromRGB(255, 0, 0),
-        FOVTransparency = 0.5,
-        FOVSides = 60,
-        Smoothing = 2,
-        SmartPrediction = true,
-        PredictionAmount = 0.165,
-        WallPenetration = false,
-        SnapLines = false,
-        SnapLineColor = Color3_fromRGB(255, 0, 0),
-        SnapLineTransparency = 0.5,
-        SnapLineThickness = 1,
-        MaxDistance = 1000,
-        TargetPriority = "FOV", -- FOV, Distance, Health
-        RecoilControl = 0.5,     -- 0 to 1, 0 being no control, 1 being full control
-        AutoShoot = false,
-        AutoShootDelay = 0.1,
-        AutoScope = false,
-        SmartTargeting = true,
-        HitboxExpansion = 0,
-        StickyAim = false,
-        StickyAimStrength = 0.5
-    },
-    
-    -- Silent Aim Settings
-    SilentAim = {
-        Enabled = false,
-        ToggleKey = Enum_KeyCode.LeftAlt,
-        TeamCheck = true,
-        VisibilityCheck = false,
-        TargetPart = "Head",
-        FallbackParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
-        FOV = 300,
-        ShowFOV = true,
-        FOVColor = Color3_fromRGB(0, 255, 0),
-        FOVTransparency = 0.5,
-        FOVSides = 60,
-        HitChance = 100,
-        HitboxExpanderEnabled = false,
-        HitboxExpansionAmount = 2,
-        HeadshotChance = 70,
-        AutoWallBang = false,
-        DoubleTapEnabled = false,
-        MaxDistance = 2000,
-        DynamicHitChance = true, -- Adjust hit chance based on distance
-        TargetPriority = "FOV",
-        PredictionAmount = 0.165,
-        SmartPrediction = true,
-        BlatantMode = false, -- Bypasses hit chance and always hits target
-        Advertise = false, -- Periodically shows hit marker to other players (subtle advertising)
-        ShowDebugInfo = false
-    },
-    
-    -- Trigger Bot Settings
-    TriggerBot = {
-        Enabled = false,
-        ToggleKey = Enum_KeyCode.T,
-        HoldKey = Enum_KeyCode.X,
-        HoldMode = false,
-        TeamCheck = true,
-        VisibilityCheck = true,
-        Delay = 0,
-        DelayVariance = 10, -- Random variance in ms
-        HitChance = 100,
-        MaxDistance = 1000,
-        FireMethod = "Click", -- Click, Virtual, Input
-        TargetPart = "Head",
-        FOV = 100, -- Only trigger within this FOV
-        ShowFOV = false,
-        FOVColor = Color3_fromRGB(255, 255, 0),
-        IgnoreTransparentParts = true,
-        RandomHitboxOffset = false,
-        HitboxOffsetRange = Vector3_new(0.1, 0.1, 0.1),
-        OnlyTargetPlayers = true,
-        ReactionTimeSimulation = true,
-        MinReactionTime = 100, -- ms
-        MaxReactionTime = 250  -- ms
-    },
-    
-    -- Character/Movement Settings
-    Character = {
-        SpeedEnabled = false,
-        SpeedToggleKey = Enum_KeyCode.LeftShift,
-        SpeedAmount = 2,
-        SpeedMethod = "CFrame", -- CFrame, Walkspeed, Velocity, Physics
-        SpeedMode = "Constant", -- Constant, Boost, Toggle
-        JumpPowerEnabled = false,
-        JumpPowerToggleKey = Enum_KeyCode.Space,
-        JumpPowerAmount = 75,
-        NoClipEnabled = false,
-        NoClipToggleKey = Enum_KeyCode.Z,
-        InfiniteJumpEnabled = false,
-        InfiniteJumpToggleKey = Enum_KeyCode.Space,
-        FlyEnabled = false,
-        FlyToggleKey = Enum_KeyCode.F,
-        FlySpeed = 2,
-        Bypasses = {
-            AntiCheatA = false,
-            AntiCheatB = false,
-            AntiCheatC = false
-        },
-        CameraMethod = {
-            ThirdPerson = false,
-            ThirdPersonKey = Enum_KeyCode.P,
-            ThirdPersonDistance = 10,
-            FreeCam = false,
-            FreeCamKey = Enum_KeyCode.L,
-            FreeCamSpeed = 2
-        },
-        BunnyHopEnabled = false,
-        BunnyHopKey = Enum_KeyCode.Space,
-        BunnyHopHeight = 25,
-        BunnyHopSpeed = 1.5,
-        AntiStumble = false,
-        AntiRagdoll = false,
-        AntiKnockback = false,
-        NoFallDamage = false,
-        AutoSprint = false,
-        WalkSpeedBoost = 0 -- Additional WalkSpeed boost
-    },
-    
-    -- ESP Settings
-    ESP = {
-        Enabled = false,
-        ToggleKey = Enum_KeyCode.RightAlt,
-        TeamCheck = false,
-        TeamColor = true,
-        Boxes = true,
-        BoxesOutline = true,
-        BoxesColor = Color3_fromRGB(255, 255, 255),
-        BoxesTransparency = 0.7,
-        BoxesOutlineColor = Color3_fromRGB(0, 0, 0),
-        Names = true,
-        NamesOutline = true,
-        NamesColor = Color3_fromRGB(255, 255, 255),
-        NamesTransparency = 0.7,
-        NamesOutlineColor = Color3_fromRGB(0, 0, 0),
-        NamesFont = "Monospace", -- Monospace, System, UI
-        NamesSize = 14,
-        Distance = true,
-        DistanceOutline = true,
-        DistanceColor = Color3_fromRGB(255, 255, 255),
-        DistanceTransparency = 0.7,
-        DistanceOutlineColor = Color3_fromRGB(0, 0, 0),
-        DistanceFont = "Monospace",
-        DistanceSize = 13,
-        Tracers = false,
-        TracersOrigin = "Bottom", -- Bottom, Mouse, Top
-        TracersColor = Color3_fromRGB(255, 255, 255),
-        TracersTransparency = 0.7,
-        TracersThickness = 1,
-        Health = true,
-        HealthOutline = true,
-        HealthColor = Color3_fromRGB(0, 255, 0),
-        HealthTransparency = 0.7,
-        HealthOutlineColor = Color3_fromRGB(0, 0, 0),
-        HealthBarType = "Side", -- Side, Bottom, Text
-        Weapon = false,
-        WeaponOutline = true,
-        WeaponColor = Color3_fromRGB(255, 255, 255),
-        WeaponTransparency = 0.7,
-        WeaponOutlineColor = Color3_fromRGB(0, 0, 0),
-        Skeletons = false,
-        SkeletonsColor = Color3_fromRGB(255, 255, 255),
-        SkeletonsTransparency = 0.7,
-        SkeletonsThickness = 1,
-        Chams = false,
-        ChamsColor = Color3_fromRGB(255, 0, 0),
-        ChamsTransparency = 0.5,
-        ChamsOutlineColor = Color3_fromRGB(0, 0, 0),
-        ChamsOutlineTransparency = 0.5,
-        ChamsRainbowEffect = false,
-        RainbowSpeed = 1,
-        ShowLookDirection = false,
-        LookDirectionColor = Color3_fromRGB(255, 255, 0),
-        MaxDistance = 2000,
-        RefreshRate = 10, -- ms
-        PlayerInfo = true, -- Shows health, armor, etc.
-        HideLocalPlayer = true
-    },
-    
-    -- Misc Settings
-    Misc = {
-        NoRecoilEnabled = false,
-        NoRecoilAmount = 1, -- 0 to 1
-        NoSpreadEnabled = false,
-        NoSpreadAmount = 1, -- 0 to 1
-        AutoReloadEnabled = false,
-        AutoFireEnabled = false,
-        RapidFireEnabled = false,
-        RapidFireRate = 0.05,
-        WallBangEnabled = false,
-        AutoHealEnabled = false,
-        HitMarkerEnabled = false,
-        HitMarkerColor = Color3_fromRGB(255, 0, 0),
-        HitMarkerDuration = 0.3,
-        HitMarkerSound = true,
-        HitMarkerSoundID = "rbxassetid://160432334",
-        KillSoundEnabled = false,
-        KillSoundID = "rbxassetid://4485506334",
-        FOVChangerEnabled = false,
-        FOVValue = 80,
-        CrosshairEnabled = false,
-        CrosshairSize = 10,
-        CrosshairThickness = 1,
-        CrosshairColor = Color3_fromRGB(0, 255, 0),
-        CrosshairTransparency = 0.5,
-        AntiAFKEnabled = true,
-        ChatSpammerEnabled = false,
-        ChatSpammerDelay = 3,
-        ChatSpammerMessages = {"MatrixHub V3 on top!", "Get good, get MatrixHub!", "Nice aim bro, try Matrix!"},
-        KillAuraEnabled = false,
-        KillAuraRange = 10,
-        KillAuraDelay = 0.5,
-        AutoPickupEnabled = false,
-        AutoPickupRange = 10,
-        ServerLaggerEnabled = false,
-        ServerLaggerIntensity = 5,
-        BunnyHopEnabled = false,
-        AutoJoinBestTeamEnabled = false,
-        AutoQueueEnabled = false,
-        AutoQueueDelay = 3,
-        NametagChangerEnabled = false,
-        CustomNametag = "MatrixHub User",
-        SkinChangerEnabled = false,
-        CustomSkinID = "0"
-    },
-    
-    -- Config System
-    Config = {
-        AutoSave = true,
-        SaveInterval = 300, -- 5 minutes
-        NotifyOnSave = true,
-        DefaultConfig = "Default",
-        ConfigVersion = 1
-    }
-}
-
--- Config System
-local ConfigSystem = {}
-
-ConfigSystem.SaveConfig = secureConfig(function(configName)
-    if not fileSystemAvailable then
-        warn("[MatrixHub] Config saving is not available - filesystem functions not supported")
-        return false
-    end
-    
-    configName = configName or Settings.Config.DefaultConfig
-    
-    -- Create config folder if it doesn't exist
-    pcall(function()
-        if not isfolder("MatrixHub") then
-            makefolder("MatrixHub")
+-- No Recoil Function
+local function applyNoRecoil()
+    if Config.Misc.NoRecoil then
+        for _, v in ipairs(getgc(true)) do
+            if type(v) == "table" then
+                if rawget(v, "Recoil") then
+                    v.Recoil = 0
+                end
+                if rawget(v, "Spread") then
+                    v.Spread = 0
+                end
+            end
         end
-        
-        if not isfolder("MatrixHub/Configs") then
-            makefolder("MatrixHub/Configs")
-        end
-    end)
-    
-    -- Create config data
-    local configData = {
-        version = Settings.Config.ConfigVersion,
-        timestamp = os_time(),
-        gameId = game.PlaceId,
-        settings = Settings
-    }
-    
-    -- Encrypt and save config
-    local success, result = pcall(function()
-        local jsonData = HttpService:JSONEncode(configData)
-        local encryptedData = Utility.Encrypt(jsonData)
-        writefile("MatrixHub/Configs/" .. configName .. ".mhconf", encryptedData)
-        return true
-    end)
-    
-    return success
-end)
+    end
+end
 
-ConfigSystem.LoadConfig = secureConfig(function(configName)
-    if not fileSystemAvailable then
-        warn("[MatrixHub] Config loading is not available - filesystem functions not supported")
-        return false
-    end
-    
-    configName = configName or Settings.Config.DefaultConfig
-    local configPath = "MatrixHub/Configs/" .. configName .. ".mhconf"
-    
-    if not isfile(configPath) then
-        return false, "Config file not found"
-    end
-    
-    local success, result = pcall(function()
-        local encryptedData = readfile(configPath)
-        local jsonData = Utility.Decrypt(encryptedData)
-        local configData = HttpService:JSONDecode(jsonData)
-        
-        -- Version check
-        if configData.version ~= Settings.Config.ConfigVersion then
-            return false, "Config version mismatch"
+-- Auto Heal Function
+local function autoHeal()
+    if Config.Misc.AutoHeal and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        if LocalPlayer.Character.Humanoid.Health < 50 then
+            local medkitEvent = game:GetService("ReplicatedStorage"):FindFirstChild("UseMedkit")
+            if medkitEvent then
+                medkitEvent:FireServer()
+            end
         end
-        
-        -- Update settings
-        Settings = configData.settings
-        return true
-    end)
-    
-    return success, result
-end)
+    end
+end
 
-ConfigSystem.GetConfigList = secureConfig(function()
-    if not fileSystemAvailable then
-        return {}
+-- Speed Hack Function
+local function applySpeedHack()
+    if Config.Misc.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + 
+            LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * Config.Misc.SpeedValue
     end
-    
-    if not isfolder("MatrixHub/Configs") then
-        return {}
-    end
-    
-    local files = {}
-    pcall(function()
-        files = listfiles("MatrixHub/Configs")
-    end)
-    
-    local configs = {}
-    
-    for _, file in ipairs(files) do
-        local fileName = string.match(file, "([^/\\]+)%.mhconf$")
-        if fileName then
-            table_insert(configs, fileName)
+end
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    -- Aimbot
+    if Config.Aimbot.Enabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType[Config.Aimbot.Key]) then
+        local target = getClosestTarget()
+        if target then
+            aimAt(target)
         end
     end
     
-    return configs
+    -- TriggerBot
+    triggerBot()
+    
+    -- ESP
+    updateESP()
+    
+    -- No Recoil
+    applyNoRecoil()
+    
+    -- Auto Heal
+    autoHeal()
+    
+    -- Speed Hack
+    applySpeedHack()
 end)
 
-ConfigSystem.DeleteConfig = secureConfig(function(configName)
-    if not fileSystemAvailable then
-        return false
+-- Cleanup on script end
+game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+    if child == EvadeCC then
+        if FOVCircle then
+            FOVCircle:Remove()
+        end
+        -- Remove hooks and connections here if needed
     end
-    
-    local configPath = "MatrixHub/Configs/" .. configName .. ".mhconf"
-    
-    if not isfile(configPath) then
-        return false, "Config file not found"
-    end
-    
-    local success, result = pcall(function()
-        delfile(configPath)
-        return true
-    end)
-    
-    return success, result
 end)
 
---//================ UI SYSTEM ================\\--
-local UI = {}
-
-UI.CreateNew = secureUI(function()
-    local MatrixUI = {}
-    
-    -- ScreenGui Creation with Nezur compatibility
-    local MatrixHub = Instance_new("ScreenGui")
-    MatrixHub.Name = "MatrixHubV3_" .. HttpService:GenerateGUID(false):sub(1, 8)  -- Randomize name for security
-    MatrixHub.ResetOnSpawn = false
-    MatrixHub.DisplayOrder = 9999
-    MatrixHub.ZIndexBehavior = Enum_ZIndexBehavior.Sibling
-    
-    -- Fixed parent method for Nezur.io compatibility
-    local function setGuiParent()
-        -- Simple parent directly to PlayerGui for Nezur
-        MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
-        return true
-    end
-    
-    local success = pcall(setGuiParent)
-    
-    if not success then
-        warn("[MatrixHub] Failed to create UI - could not set ScreenGui parent")
-        return nil
-    end
-    
-    -- Main Components
-    local MainFrame = Instance_new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2_new(0, 650, 0, 450)
-    MainFrame.Position = UDim2_new(0.5, -325, 0.5, -225)
-    MainFrame.BackgroundColor3 = Settings.UI.Theme.Primary
-    MainFrame.BorderSizePixel = 0
-    MainFrame.ClipsDescendants = true
-    MainFrame.Active = true
-    MainFrame.Parent = MatrixHub
-    
-    -- Create TopBar (Header)
-    local TopBar = Instance_new("Frame")
-    TopBar.Name = "TopBar"
-    TopBar.Size = UDim2_new(1, 0, 0, 30)
-    TopBar.Position = UDim2_new(0, 0, 0, 0)
-    TopBar.BackgroundColor3 = Settings.UI.Theme.Secondary
-    TopBar.BorderSizePixel = 0
-    TopBar.Parent = MainFrame
-    
-    -- Create Title
-    local Title = Instance_new("TextLabel")
-    Title.Name = "Title"
-    Title.Size = UDim2_new(0, 200, 1, 0)
-    Title.Position = UDim2_new(0, 10, 0, 0)
-    Title.BackgroundTransparency = 1
-    Title.Font = Settings.UI.Font
-    Title.TextSize = Settings.UI.FontSize.Title
-    Title.TextColor3 = Settings.UI.Theme.Text
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.Text = "MatrixHub V3"
-    Title.Parent = TopBar
-    
-    -- Create Version
-    local Version = Instance_new("TextLabel")
-    Version.Name = "Version"
-    Version.Size = UDim2_new(0, 100, 1, 0)
-    Version.Position = UDim2_new
+-- Notification on load
+createNotification("Evade.cc Loaded Successfully!")
