@@ -13,8 +13,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
-local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
+
+-- Nezur.io compatibility fix - Remove VirtualUser reference
+-- local VirtualUser = game:GetService("VirtualUser")
 
 -- Add Stats service with error handling
 local Stats = nil
@@ -82,7 +84,6 @@ local UDim2_new = UDim2.new
 local UDim_new = UDim.new
 local Instance_new = Instance.new
 local Ray_new = Ray.new
-local Drawing_new = Drawing.new
 local TweenInfo_new = TweenInfo.new
 local Enum_KeyCode = Enum.KeyCode
 local Enum_UserInputType = Enum.UserInputType
@@ -108,15 +109,18 @@ local function checkFileSystem()
 end
 fileSystemAvailable = checkFileSystem()
 
--- Drawing function compatibility check
-local drawingAvailable = true
+-- Drawing function compatibility check for Nezur.io
+local drawingAvailable = false
 local function checkDrawing()
-    local success = pcall(function()
-        local testDrawing = Drawing.new("Circle")
-        testDrawing:Remove()
-        return true
-    end)
-    return success
+    if Drawing then
+        local success = pcall(function()
+            local testDrawing = Drawing.new("Circle")
+            testDrawing:Remove()
+            return true
+        end)
+        return success
+    end
+    return false
 end
 drawingAvailable = checkDrawing()
 
@@ -765,50 +769,14 @@ UI.CreateNew = secureUI(function()
     MatrixHub.DisplayOrder = 9999
     MatrixHub.ZIndexBehavior = Enum_ZIndexBehavior.Sibling
     
-    -- Safely set parent with multiple fallback options for Nezur compatibility
-    local success = false
-    
-    -- Try methods in order of preference
-    local parentMethods = {
-        function()
-            -- Method 1: Standard CoreGui approach
-            if syn and syn.protect_gui then
-                syn.protect_gui(MatrixHub)
-                MatrixHub.Parent = game:GetService("CoreGui")
-                return true
-            end
-            return false
-        end,
-        
-        function()
-            -- Method 2: Direct CoreGui parent
-            MatrixHub.Parent = game:GetService("CoreGui")
-            return true
-        end,
-        
-        function() 
-            -- Method 3: gethui() method
-            if gethui then
-                MatrixHub.Parent = gethui()
-                return true
-            end
-            return false
-        end,
-        
-        function()
-            -- Method 4: PlayerGui (last resort)
-            MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
-            return true
-        end
-    }
-    
-    -- Try each method until one succeeds
-    for _, method in ipairs(parentMethods) do
-        success = pcall(method)
-        if success then
-            break
-        end
+    -- Fixed parent method for Nezur.io compatibility
+    local function setGuiParent()
+        -- Simple parent directly to PlayerGui for Nezur
+        MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        return true
     end
+    
+    local success = pcall(setGuiParent)
     
     if not success then
         warn("[MatrixHub] Failed to create UI - could not set ScreenGui parent")
@@ -826,15 +794,30 @@ UI.CreateNew = secureUI(function()
     MainFrame.Active = true
     MainFrame.Parent = MatrixHub
     
-    -- Make UI draggable without .Draggable property for better compatibility
-    local dragging = false
-    local dragStart
-    local startPos
+    -- Create TopBar (Header)
+    local TopBar = Instance_new("Frame")
+    TopBar.Name = "TopBar"
+    TopBar.Size = UDim2_new(1, 0, 0, 30)
+    TopBar.Position = UDim2_new(0, 0, 0, 0)
+    TopBar.BackgroundColor3 = Settings.UI.Theme.Secondary
+    TopBar.BorderSizePixel = 0
+    TopBar.Parent = MainFrame
     
-    local function updateDrag(input)
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2_new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset +
+    -- Create Title
+    local Title = Instance_new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2_new(0, 200, 1, 0)
+    Title.Position = UDim2_new(0, 10, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Font = Settings.UI.Font
+    Title.TextSize = Settings.UI.FontSize.Title
+    Title.TextColor3 = Settings.UI.Theme.Text
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Text = "MatrixHub V3"
+    Title.Parent = TopBar
+    
+    -- Create Version
+    local Version = Instance_new("TextLabel")
+    Version.Name = "Version"
+    Version.Size = UDim2_new(0, 100, 1, 0)
+    Version.Position = UDim2_new
