@@ -1,643 +1,780 @@
---// MATRIXHUB V2 - ENHANCED PVP SCRIPT \\--
--- Improved GUI | Universal Game Support | Works with Any Executor
--- Press INSERT to Hide/Show UI | Fully Customizable Settings
+--//=========================================================\\--
+--||                    MATRIXHUB V3                         ||--
+--||        Advanced Targeting and Movement System           ||--
+--||           (C++ Style UI | Professional Build)           ||--
+--\\=========================================================//--
 
+-- Core Service References
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+
+-- Player References
 local LocalPlayer = Players.LocalPlayer
-local Camera = game.Workspace.CurrentCamera
+local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
--- Create secure function wrapper for executor compatibility
-local function secureCall(func)
-    return function(...)
-        local success, result = pcall(func, ...)
-        if not success then
-            print("MatrixHub: Function error handled - " .. tostring(result))
-        end
-        return success and result or nil
-    end
-end
+-- Version Information
+local VERSION = "3.0.2"
+local BUILD_DATE = "01-03-2025"
+local BUILD_ID = "MHB-" .. HttpService:GenerateGUID(false):sub(1, 8)
 
---// IMPROVED UI DESIGN \\--
-local MatrixHub = Instance.new("ScreenGui")
-MatrixHub.Name = "MatrixHubV2"
-MatrixHub.ResetOnSpawn = false
-MatrixHub.DisplayOrder = 9999
-MatrixHub.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
--- Try to use CoreGui for better hiding from anti-cheats
-pcall(function()
-    MatrixHub.Parent = game:GetService("CoreGui")
-end)
-
--- Fallback to PlayerGui if CoreGui fails
-if not MatrixHub.Parent then
-    MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
--- Main UI Frame
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 550, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = MatrixHub
-
--- Top Bar
-local TopBar = Instance.new("Frame")
-TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.Position = UDim2.new(0, 0, 0, 0)
-TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-TopBar.BorderSizePixel = 0
-TopBar.Parent = MainFrame
-
--- Title
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.Size = UDim2.new(0, 200, 1, 0)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "MATRIX HUB V2"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = TopBar
-
--- Close Button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -40, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseButton.BorderSizePixel = 0
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 14
-CloseButton.Parent = TopBar
-CloseButton.MouseButton1Click:Connect(function()
-    MatrixHub:Destroy()
-end)
-
--- Minimize Button
-local MinimizeButton = Instance.new("TextButton")
-MinimizeButton.Name = "MinimizeButton"
-MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -80, 0, 5)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-MinimizeButton.BorderSizePixel = 0
-MinimizeButton.Text = "-"
-MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeButton.Font = Enum.Font.GothamBold
-MinimizeButton.TextSize = 14
-MinimizeButton.Parent = TopBar
-
-local minimized = false
-MinimizeButton.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 550, 0, 40)}):Play()
-    else
-        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 550, 0, 400)}):Play()
-    end
-end)
-
--- Tab Container
-local TabContainer = Instance.new("Frame")
-TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(0, 120, 1, -40)
-TabContainer.Position = UDim2.new(0, 0, 0, 40)
-TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-TabContainer.BorderSizePixel = 0
-TabContainer.Parent = MainFrame
-
--- Content Container
-local ContentContainer = Instance.new("Frame")
-ContentContainer.Name = "ContentContainer"
-ContentContainer.Size = UDim2.new(1, -120, 1, -40)
-ContentContainer.Position = UDim2.new(0, 120, 0, 40)
-ContentContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-ContentContainer.BorderSizePixel = 0
-ContentContainer.Parent = MainFrame
-
---// TAB SYSTEM \\--
-local Tabs = {"Aimbot", "Silent Aim", "Misc", "Character", "ESP", "Config"}
-local TabButtons = {}
-local TabFrames = {}
-local ActiveTab = nil
-
-local function SetActiveTab(tabName)
-    if ActiveTab == tabName then return end
-    
-    for name, button in pairs(TabButtons) do
-        if name == tabName then
-            button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            TabFrames[name].Visible = true
-        else
-            button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-            TabFrames[name].Visible = false
-        end
-    end
-    
-    ActiveTab = tabName
-end
-
--- Create tabs
-for i, tabName in ipairs(Tabs) do
-    -- Tab Button
-    local TabButton = Instance.new("TextButton")
-    TabButton.Name = tabName .. "Button"
-    TabButton.Size = UDim2.new(1, -10, 0, 35)
-    TabButton.Position = UDim2.new(0, 5, 0, 5 + (i-1) * 40)
-    TabButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    TabButton.BorderColor3 = Color3.fromRGB(60, 60, 70)
-    TabButton.BorderSizePixel = 1
-    TabButton.Text = tabName
-    TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TabButton.Font = Enum.Font.Gotham
-    TabButton.TextSize = 14
-    TabButton.Parent = TabContainer
-    TabButtons[tabName] = TabButton
-    
-    -- Tab Content Frame
-    local ContentFrame = Instance.new("ScrollingFrame")
-    ContentFrame.Name = tabName .. "Frame"
-    ContentFrame.Size = UDim2.new(1, 0, 1, 0)
-    ContentFrame.BackgroundTransparency = 1
-    ContentFrame.BorderSizePixel = 0
-    ContentFrame.ScrollBarThickness = 4
-    ContentFrame.Visible = false
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 500) -- Will adjust based on content
-    ContentFrame.Parent = ContentContainer
-    TabFrames[tabName] = ContentFrame
-    
-    -- Tab Button Click Event
-    TabButton.MouseButton1Click:Connect(function()
-        SetActiveTab(tabName)
-    end)
-end
-
--- Set default active tab
-SetActiveTab("Aimbot")
-
---// FEATURE VARIABLES \\--
-local Settings = {
-    -- Aimbot Settings
-    AimbotEnabled = false,
-    AimbotKey = Enum.KeyCode.E,
-    AimbotSmoothing = 2,
-    AimbotFOV = 250,
-    AimbotTeamCheck = true,
-    AimbotVisibilityCheck = false,
-    AimbotTargetPart = "Head",
-    
-    -- Silent Aim Settings
-    SilentAimEnabled = false,
-    SilentAimBlatant = false, -- New setting for blatant mode
-    SilentAimFOV = 300,
-    SilentAimHitChance = 100,
-    SilentAimTeamCheck = true,
-    SilentAimTargetPart = "Head",
-    
-    -- Trigger Bot Settings
-    TriggerBotEnabled = false,
-    TriggerBotDelay = 0,
-    TriggerBotKey = Enum.KeyCode.T,
-    TriggerBotHoldMode = false,
-    
-    -- Character Settings
-    SpeedEnabled = false,
-    SpeedAmount = 1,
-    SpeedMethod = "CFrame", -- CFrame or Walkspeed
-    JumpPowerEnabled = false,
-    JumpPowerAmount = 50,
-    NoClipEnabled = false,
-    InfiniteJumpEnabled = false,
-    
-    -- ESP Settings
-    ESPEnabled = false,
-    ESPBoxes = true,
-    ESPNames = true,
-    ESPTracer = false,
-    ESPTeamColors = true,
-    ESPTeamCheck = false,
-    ESPDistance = true,
-    
-    -- Misc Settings
-    NoRecoilEnabled = false,
-    NoSpreadEnabled = false,
-    AutoHealEnabled = false,
-    AutoReloadEnabled = false,
+-- Memory Management
+local memory = {
+    connections = {},
+    drawings = {},
+    hooks = {},
+    cache = {},
+    targets = {},
+    config = {}
 }
 
---// GUI ELEMENTS CREATION FUNCTIONS \\--
-local function CreateLabel(parent, text, posY)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, 20)
-    label.Position = UDim2.new(0, 10, 0, posY)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = parent
-    return label, posY + 25
-end
+-- Performance Optimization
+local math_random = math.random
+local math_randomseed = math.randomseed
+local math_floor = math.floor
+local math_ceil = math.ceil
+local math_sin = math.sin
+local math_cos = math.cos
+local math_tan = math.tan
+local math_abs = math.abs
+local math_rad = math.rad
+local math_deg = math.deg
+local math_min = math.min
+local math_max = math.max
+local math_clamp = math.clamp
+local math_huge = math.huge
+local table_insert = table.insert
+local table_remove = table.remove
+local table_find = table.find
+local table_clear = table.clear
+local string_format = string.format
+local string_sub = string.sub
+local string_match = string.match
+local string_gsub = string.gsub
+local string_lower = string.lower
+local string_upper = string.upper
+local string_len = string.len
+local os_time = os.time
+local os_date = os.date
+local os_clock = os.clock
+local Vector2_new = Vector2.new
+local Vector3_new = Vector3.new
+local CFrame_new = CFrame.new
+local CFrame_Angles = CFrame.Angles
+local Color3_new = Color3.new
+local Color3_fromRGB = Color3.fromRGB
+local Color3_fromHSV = Color3.fromHSV
+local UDim2_new = UDim2.new
+local UDim_new = UDim.new
+local Instance_new = Instance.new
+local Ray_new = Ray.new
+local Drawing_new = Drawing.new
+local TweenInfo_new = TweenInfo.new
+local Enum_KeyCode = Enum.KeyCode
+local Enum_UserInputType = Enum.UserInputType
+local Enum_TextXAlignment = Enum.TextXAlignment
+local Enum_ZIndexBehavior = Enum.ZIndexBehavior
+local Enum_Font = Enum.Font
 
-local function CreateToggle(parent, text, posY, default, callback)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -20, 0, 30)
-    container.Position = UDim2.new(0, 10, 0, posY)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, 0, 1, 0)
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    
-    local toggleButton = Instance.new("Frame")
-    toggleButton.Size = UDim2.new(0, 40, 0, 20)
-    toggleButton.Position = UDim2.new(1, -40, 0, 5)
-    toggleButton.BackgroundColor3 = default and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 60, 60)
-    toggleButton.BorderSizePixel = 0
-    toggleButton.Parent = container
-    
-    local value = default
-    
-    toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            value = not value
-            toggleButton.BackgroundColor3 = value and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 60, 60)
-            callback(value)
-        end
-    end)
-    
-    return container, posY + 35, value
-end
+-- Security System
+local securityToken = HttpService:GenerateGUID(false)
+local encryptionKey = string.sub(HttpService:GenerateGUID(false), 1, 16)
 
-local function CreateSlider(parent, text, posY, min, max, default, callback)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -20, 0, 50)
-    container.Position = UDim2.new(0, 10, 0, posY)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.BackgroundTransparency = 1
-    label.Text = text .. ": " .. default
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    
-    local sliderBack = Instance.new("Frame")
-    sliderBack.Size = UDim2.new(1, 0, 0, 10)
-    sliderBack.Position = UDim2.new(0, 0, 0, 25)
-    sliderBack.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    sliderBack.BorderSizePixel = 0
-    sliderBack.Parent = container
-    
-    local sliderFill = Instance.new("Frame")
-    sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    sliderFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    sliderFill.BorderSizePixel = 0
-    sliderFill.Parent = sliderBack
-    
-    local value = default
-    
-    local function updateSlider(input)
-        local sizeX = math.clamp((input.Position.X - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X, 0, 1)
-        sliderFill.Size = UDim2.new(sizeX, 0, 1, 0)
-        value = min + (max - min) * sizeX
-        label.Text = text .. ": " .. math.floor(value * 100) / 100
-        callback(value)
-    end
-    
-    sliderBack.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            updateSlider(input)
-            local connection
-            connection = RunService.RenderStepped:Connect(function()
-                if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                    updateSlider({Position = Vector2.new(Mouse.X, Mouse.Y)})
-                else
-                    connection:Disconnect()
-                end
+-- Error Handling and Secure Function Calls
+local function createSecureWrapper(name)
+    return function(func)
+        return function(...)
+            local args = {...}
+            local success, result = pcall(function()
+                return func(unpack(args))
             end)
+            
+            if not success then
+                local errorId = HttpService:GenerateGUID(false):sub(1, 8)
+                print("[MatrixHub][" .. name .. "][Error:" .. errorId .. "] " .. tostring(result))
+                
+                -- Log error for diagnostics
+                memory.cache.errorLogs = memory.cache.errorLogs or {}
+                table_insert(memory.cache.errorLogs, {
+                    id = errorId,
+                    timestamp = os_time(),
+                    component = name,
+                    message = tostring(result),
+                    stack = debug.traceback()
+                })
+            end
+            
+            return success and result or nil
         end
-    end)
-    
-    return container, posY + 55
+    end
 end
 
-local function CreateDropdown(parent, text, posY, options, default, callback)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -20, 0, 60)
-    container.Position = UDim2.new(0, 10, 0, posY)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
+local secureUI = createSecureWrapper("UI")
+local secureAim = createSecureWrapper("Aim")
+local secureESP = createSecureWrapper("ESP")
+local secureMovement = createSecureWrapper("Movement")
+local secureMisc = createSecureWrapper("Misc")
+local secureConfig = createSecureWrapper("Config")
+
+--//================ UTILITY FUNCTIONS ================\\--
+local Utility = {}
+
+-- String Encryption/Decryption for Config
+Utility.Encrypt = function(str)
+    local result = ""
+    for i = 1, #str do
+        local char = string.byte(str, i)
+        local keyChar = string.byte(encryptionKey, (i % #encryptionKey) + 1)
+        result = result .. string.char(bit32.bxor(char, keyChar))
+    end
+    return result
+end
+
+Utility.Decrypt = function(str)
+    return Utility.Encrypt(str) -- XOR encryption is symmetrical
+end
+
+-- Vector Calculations
+Utility.GetDistance = function(pos1, pos2)
+    return (pos1 - pos2).Magnitude
+end
+
+Utility.GetDirection = function(origin, target)
+    return (target - origin).Unit
+end
+
+-- Validation Functions
+Utility.IsAlive = function(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+Utility.IsVisible = function(character, part)
+    if not character or not part then return false end
     
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
+    local origin = Camera.CFrame.Position
+    local direction = (part.Position - origin).Unit
     
-    local dropButton = Instance.new("TextButton")
-    dropButton.Size = UDim2.new(1, 0, 0, 30)
-    dropButton.Position = UDim2.new(0, 0, 0, 25)
-    dropButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    dropButton.BorderSizePixel = 1
-    dropButton.BorderColor3 = Color3.fromRGB(60, 60, 70)
-    dropButton.Text = default
-    dropButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    dropButton.Font = Enum.Font.Gotham
-    dropButton.TextSize = 14
-    dropButton.Parent = container
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     
-    local value = default
+    local result = Workspace:Raycast(origin, direction * 9999, rayParams)
     
-    local dropFrame = Instance.new("Frame")
-    dropFrame.Size = UDim2.new(1, 0, 0, #options * 30)
-    dropFrame.Position = UDim2.new(0, 0, 1, 0)
-    dropFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    dropFrame.BorderSizePixel = 1
-    dropFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
-    dropFrame.Visible = false
-    dropFrame.ZIndex = 10
-    dropFrame.Parent = dropButton
+    return result and result.Instance and (result.Instance:IsDescendantOf(character) or result.Instance == part)
+end
+
+Utility.IsTeammate = function(player)
+    if not player or player == LocalPlayer then return false end
     
-    for i, option in ipairs(options) do
-        local optionButton = Instance.new("TextButton")
-        optionButton.Size = UDim2.new(1, 0, 0, 30)
-        optionButton.Position = UDim2.new(0, 0, 0, (i-1) * 30)
-        optionButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        optionButton.BorderSizePixel = 0
-        optionButton.Text = option
-        optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        optionButton.Font = Enum.Font.Gotham
-        optionButton.TextSize = 14
-        optionButton.ZIndex = 11
-        optionButton.Parent = dropFrame
-        
-        optionButton.MouseButton1Click:Connect(function()
-            value = option
-            dropButton.Text = option
-            dropFrame.Visible = false
-            callback(option)
-        end)
+    -- Universal Team Check
+    if player.Team and LocalPlayer.Team then
+        return player.Team == LocalPlayer.Team
     end
     
-    dropButton.MouseButton1Click:Connect(function()
-        dropFrame.Visible = not dropFrame.Visible
-    end)
+    -- FFA Game Detection (based on character colors)
+    if player.Character and LocalPlayer.Character then
+        local playerTorso = player.Character:FindFirstChild("HumanoidRootPart")
+        local localTorso = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        
+        if playerTorso and localTorso and playerTorso:FindFirstChild("BrickColor") and localTorso:FindFirstChild("BrickColor") then
+            return playerTorso.BrickColor == localTorso.BrickColor
+        end
+    end
     
-    return container, posY + 65
+    return false
 end
 
-local function CreateKeybind(parent, text, posY, default, callback)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -20, 0, 30)
-    container.Position = UDim2.new(0, 10, 0, posY)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
+-- Game Analysis
+Utility.AnalyzeGame = function()
+    local gameData = {
+        weaponSystem = "Unknown",
+        movementType = "Standard",
+        hasFallDamage = false,
+        teamBased = true,
+        supportsSilentAim = true
+    }
     
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, 0, 1, 0)
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
+    -- Check for common weapon systems
+    if ReplicatedStorage:FindFirstChild("Weapons") then
+        gameData.weaponSystem = "Standard"
+    elseif ReplicatedStorage:FindFirstChild("Framework") then
+        gameData.weaponSystem = "Framework"
+    elseif ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Gun") then
+        gameData.weaponSystem = "Modular"
+    end
     
-    local keyButton = Instance.new("TextButton")
-    keyButton.Size = UDim2.new(0.3, -5, 1, -5)
-    keyButton.Position = UDim2.new(0.7, 0, 0, 0)
-    keyButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    keyButton.BorderColor3 = Color3.fromRGB(60, 60, 70)
-    keyButton.Text = default.Name
-    keyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    keyButton.Font = Enum.Font.Gotham
-    keyButton.TextSize = 14
-    keyButton.Parent = container
+    -- Check movement type
+    if Workspace:FindFirstChild("Gravity") then
+        if Workspace.Gravity < 196.2 then
+            gameData.movementType = "LowGravity"
+        end
+    end
     
-    local binding = false
-    local key = default
+    -- Check for anti-cheat systems (simplified detection)
+    memory.cache.antiCheatDetected = false
     
-    keyButton.MouseButton1Click:Connect(function()
-        binding = true
-        keyButton.Text = "..."
+    for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+        if string.match(string.lower(v.Name), "anti") and string.match(string.lower(v.Name), "cheat") or
+           string.match(string.lower(v.Name), "security") or string.match(string.lower(v.Name), "report") then
+            memory.cache.antiCheatDetected = true
+            break
+        end
+    end
+    
+    return gameData
+end
+
+-- Player Analysis
+Utility.AnalyzePlayers = function()
+    local result = {
+        averageHealth = 0,
+        commonParts = {},
+        playerCount = 0
+    }
+    
+    local partCounts = {}
+    local totalHealth = 0
+    local playerCount = 0
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            playerCount = playerCount + 1
+            
+            -- Analyze health
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                totalHealth = totalHealth + humanoid.Health
+            end
+            
+            -- Analyze character structure
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    partCounts[part.Name] = (partCounts[part.Name] or 0) + 1
+                end
+            end
+        end
+    end
+    
+    -- Calculate average health
+    if playerCount > 0 then
+        result.averageHealth = totalHealth / playerCount
+        result.playerCount = playerCount
+        
+        -- Find common parts
+        for part, count in pairs(partCounts) do
+            if count >= playerCount * 0.8 then -- If 80% of players have this part
+                table_insert(result.commonParts, part)
+            end
+        end
+    end
+    
+    return result
+end
+
+-- Performance Monitoring
+Utility.StartPerformanceMonitoring = function()
+    memory.cache.performanceStats = {
+        fps = 0,
+        ping = 0,
+        memoryUsage = 0,
+        startTime = os_clock()
+    }
+    
+    local frameCount = 0
+    local lastUpdate = os_clock()
+    
+    memory.connections.performanceMonitor = RunService.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+        
+        local currentTime = os_clock()
+        local elapsed = currentTime - lastUpdate
+        
+        if elapsed >= 1 then
+            memory.cache.performanceStats.fps = math_floor(frameCount / elapsed)
+            memory.cache.performanceStats.ping = LocalPlayer:GetNetworkPing() * 1000
+            memory.cache.performanceStats.memoryUsage = math_floor(stats().PhysicalMemory / 1024 / 1024)
+            
+            frameCount = 0
+            lastUpdate = currentTime
+        end
+    end)
+end
+
+--//================ CORE SETTINGS SYSTEM ================\\--
+local Settings = {
+    -- Core System Settings
+    UI = {
+        Enabled = true,
+        Theme = {
+            Primary = Color3_fromRGB(24, 24, 36),     -- Dark Background
+            Secondary = Color3_fromRGB(12, 12, 24),   -- Darker Background
+            Accent = Color3_fromRGB(0, 120, 215),     -- Blue Accent
+            Text = Color3_fromRGB(230, 230, 230),     -- Light Text
+            Highlight = Color3_fromRGB(0, 155, 240),  -- Highlight Blue
+            Error = Color3_fromRGB(225, 70, 70),      -- Error Red
+            Success = Color3_fromRGB(70, 225, 70),    -- Success Green
+            Warning = Color3_fromRGB(225, 225, 70)    -- Warning Yellow
+        },
+        Font = Enum_Font.Code,
+        FontSize = {
+            Title = 18,
+            Subtitle = 16,
+            Regular = 14,
+            Small = 12
+        },
+        Animation = {
+            Enabled = true,
+            Speed = 0.3
+        },
+        Draggable = true,
+        Minimizable = true,
+        Transparency = 0.95,
+        ShowPerformance = true,
+        ShowTooltips = true,
+        ShowKeybinds = true,
+        Scale = 1.0
+    },
+    
+    -- Aimbot Settings
+    Aimbot = {
+        Enabled = false,
+        ToggleKey = Enum_KeyCode.Q,
+        HoldKey = Enum_KeyCode.E,
+        HoldMode = true,
+        TeamCheck = true,
+        VisibilityCheck = false,
+        TargetPart = "Head",
+        FallbackParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
+        FOV = 250,
+        ShowFOV = true,
+        FOVColor = Color3_fromRGB(255, 0, 0),
+        FOVTransparency = 0.5,
+        FOVSides = 60,
+        Smoothing = 2,
+        SmartPrediction = true,
+        PredictionAmount = 0.165,
+        WallPenetration = false,
+        SnapLines = false,
+        SnapLineColor = Color3_fromRGB(255, 0, 0),
+        SnapLineTransparency = 0.5,
+        SnapLineThickness = 1,
+        MaxDistance = 1000,
+        TargetPriority = "FOV", -- FOV, Distance, Health
+        RecoilControl = 0.5,     -- 0 to 1, 0 being no control, 1 being full control
+        AutoShoot = false,
+        AutoShootDelay = 0.1,
+        AutoScope = false,
+        SmartTargeting = true,
+        HitboxExpansion = 0,
+        StickyAim = false,
+        StickyAimStrength = 0.5
+    },
+    
+    -- Silent Aim Settings
+    SilentAim = {
+        Enabled = false,
+        ToggleKey = Enum_KeyCode.LeftAlt,
+        TeamCheck = true,
+        VisibilityCheck = false,
+        TargetPart = "Head",
+        FallbackParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
+        FOV = 300,
+        ShowFOV = true,
+        FOVColor = Color3_fromRGB(0, 255, 0),
+        FOVTransparency = 0.5,
+        FOVSides = 60,
+        HitChance = 100,
+        HitboxExpanderEnabled = false,
+        HitboxExpansionAmount = 2,
+        HeadshotChance = 70,
+        AutoWallBang = false,
+        DoubleTapEnabled = false,
+        MaxDistance = 2000,
+        DynamicHitChance = true, -- Adjust hit chance based on distance
+        TargetPriority = "FOV",
+        PredictionAmount = 0.165,
+        SmartPrediction = true,
+        BlatantMode = false, -- Bypasses hit chance and always hits target
+        Advertise = false, -- Periodically shows hit marker to other players (subtle advertising)
+        ShowDebugInfo = false
+    },
+    
+    -- Trigger Bot Settings
+    TriggerBot = {
+        Enabled = false,
+        ToggleKey = Enum_KeyCode.T,
+        HoldKey = Enum_KeyCode.X,
+        HoldMode = false,
+        TeamCheck = true,
+        VisibilityCheck = true,
+        Delay = 0,
+        DelayVariance = 10, -- Random variance in ms
+        HitChance = 100,
+        MaxDistance = 1000,
+        FireMethod = "Click", -- Click, Virtual, Input
+        TargetPart = "Head",
+        FOV = 100, -- Only trigger within this FOV
+        ShowFOV = false,
+        FOVColor = Color3_fromRGB(255, 255, 0),
+        IgnoreTransparentParts = true,
+        RandomHitboxOffset = false,
+        HitboxOffsetRange = Vector3_new(0.1, 0.1, 0.1),
+        OnlyTargetPlayers = true,
+        ReactionTimeSimulation = true,
+        MinReactionTime = 100, -- ms
+        MaxReactionTime = 250  -- ms
+    },
+    
+    -- Character/Movement Settings
+    Character = {
+        SpeedEnabled = false,
+        SpeedToggleKey = Enum_KeyCode.LeftShift,
+        SpeedAmount = 2,
+        SpeedMethod = "CFrame", -- CFrame, Walkspeed, Velocity, Physics
+        SpeedMode = "Constant", -- Constant, Boost, Toggle
+        JumpPowerEnabled = false,
+        JumpPowerToggleKey = Enum_KeyCode.Space,
+        JumpPowerAmount = 75,
+        NoClipEnabled = false,
+        NoClipToggleKey = Enum_KeyCode.Z,
+        InfiniteJumpEnabled = false,
+        InfiniteJumpToggleKey = Enum_KeyCode.Space,
+        FlyEnabled = false,
+        FlyToggleKey = Enum_KeyCode.F,
+        FlySpeed = 2,
+        Bypasses = {
+            AntiCheatA = false,
+            AntiCheatB = false,
+            AntiCheatC = false
+        },
+        CameraMethod = {
+            ThirdPerson = false,
+            ThirdPersonKey = Enum_KeyCode.P,
+            ThirdPersonDistance = 10,
+            FreeCam = false,
+            FreeCamKey = Enum_KeyCode.L,
+            FreeCamSpeed = 2
+        },
+        BunnyHopEnabled = false,
+        BunnyHopKey = Enum_KeyCode.Space,
+        BunnyHopHeight = 25,
+        BunnyHopSpeed = 1.5,
+        AntiStumble = false,
+        AntiRagdoll = false,
+        AntiKnockback = false,
+        NoFallDamage = false,
+        AutoSprint = false,
+        WalkSpeedBoost = 0 -- Additional WalkSpeed boost
+    },
+    
+    -- ESP Settings
+    ESP = {
+        Enabled = false,
+        ToggleKey = Enum_KeyCode.RightAlt,
+        TeamCheck = false,
+        TeamColor = true,
+        Boxes = true,
+        BoxesOutline = true,
+        BoxesColor = Color3_fromRGB(255, 255, 255),
+        BoxesTransparency = 0.7,
+        BoxesOutlineColor = Color3_fromRGB(0, 0, 0),
+        Names = true,
+        NamesOutline = true,
+        NamesColor = Color3_fromRGB(255, 255, 255),
+        NamesTransparency = 0.7,
+        NamesOutlineColor = Color3_fromRGB(0, 0, 0),
+        NamesFont = "Monospace", -- Monospace, System, UI
+        NamesSize = 14,
+        Distance = true,
+        DistanceOutline = true,
+        DistanceColor = Color3_fromRGB(255, 255, 255),
+        DistanceTransparency = 0.7,
+        DistanceOutlineColor = Color3_fromRGB(0, 0, 0),
+        DistanceFont = "Monospace",
+        DistanceSize = 13,
+        Tracers = false,
+        TracersOrigin = "Bottom", -- Bottom, Mouse, Top
+        TracersColor = Color3_fromRGB(255, 255, 255),
+        TracersTransparency = 0.7,
+        TracersThickness = 1,
+        Health = true,
+        HealthOutline = true,
+        HealthColor = Color3_fromRGB(0, 255, 0),
+        HealthTransparency = 0.7,
+        HealthOutlineColor = Color3_fromRGB(0, 0, 0),
+        HealthBarType = "Side", -- Side, Bottom, Text
+        Weapon = false,
+        WeaponOutline = true,
+        WeaponColor = Color3_fromRGB(255, 255, 255),
+        WeaponTransparency = 0.7,
+        WeaponOutlineColor = Color3_fromRGB(0, 0, 0),
+        Skeletons = false,
+        SkeletonsColor = Color3_fromRGB(255, 255, 255),
+        SkeletonsTransparency = 0.7,
+        SkeletonsThickness = 1,
+        Chams = false,
+        ChamsColor = Color3_fromRGB(255, 0, 0),
+        ChamsTransparency = 0.5,
+        ChamsOutlineColor = Color3_fromRGB(0, 0, 0),
+        ChamsOutlineTransparency = 0.5,
+        ChamsRainbowEffect = false,
+        RainbowSpeed = 1,
+        ShowLookDirection = false,
+        LookDirectionColor = Color3_fromRGB(255, 255, 0),
+        MaxDistance = 2000,
+        RefreshRate = 10, -- ms
+        PlayerInfo = true, -- Shows health, armor, etc.
+        HideLocalPlayer = true
+    },
+    
+    -- Misc Settings
+    Misc = {
+        NoRecoilEnabled = false,
+        NoRecoilAmount = 1, -- 0 to 1
+        NoSpreadEnabled = false,
+        NoSpreadAmount = 1, -- 0 to 1
+        AutoReloadEnabled = false,
+        AutoFireEnabled = false,
+        RapidFireEnabled = false,
+        RapidFireRate = 0.05,
+        WallBangEnabled = false,
+        AutoHealEnabled = false,
+        HitMarkerEnabled = false,
+        HitMarkerColor = Color3_fromRGB(255, 0, 0),
+        HitMarkerDuration = 0.3,
+        HitMarkerSound = true,
+        HitMarkerSoundID = "rbxassetid://160432334",
+        KillSoundEnabled = false,
+        KillSoundID = "rbxassetid://4485506334",
+        FOVChangerEnabled = false,
+        FOVValue = 80,
+        CrosshairEnabled = false,
+        CrosshairSize = 10,
+        CrosshairThickness = 1,
+        CrosshairColor = Color3_fromRGB(0, 255, 0),
+        CrosshairTransparency = 0.5,
+        AntiAFKEnabled = true,
+        ChatSpammerEnabled = false,
+        ChatSpammerDelay = 3,
+        ChatSpammerMessages = {"MatrixHub V3 on top!", "Get good, get MatrixHub!", "Nice aim bro, try Matrix!"},
+        KillAuraEnabled = false,
+        KillAuraRange = 10,
+        KillAuraDelay = 0.5,
+        AutoPickupEnabled = false,
+        AutoPickupRange = 10,
+        ServerLaggerEnabled = false,
+        ServerLaggerIntensity = 5,
+        BunnyHopEnabled = false,
+        AutoJoinBestTeamEnabled = false,
+        AutoQueueEnabled = false,
+        AutoQueueDelay = 3,
+        NametagChangerEnabled = false,
+        CustomNametag = "MatrixHub User",
+        SkinChangerEnabled = false,
+        CustomSkinID = "0"
+    },
+    
+    -- Config System
+    Config = {
+        AutoSave = true,
+        SaveInterval = 300, -- 5 minutes
+        NotifyOnSave = true,
+        DefaultConfig = "Default",
+        ConfigVersion = 1
+    }
+}
+
+-- Config System
+local ConfigSystem = {}
+
+ConfigSystem.SaveConfig = secureConfig(function(configName)
+    configName = configName or Settings.Config.DefaultConfig
+    
+    -- Create config folder if it doesn't exist
+    if not isfolder("MatrixHub") then
+        makefolder("MatrixHub")
+    end
+    
+    if not isfolder("MatrixHub/Configs") then
+        makefolder("MatrixHub/Configs")
+    end
+    
+    -- Create config data
+    local configData = {
+        version = Settings.Config.ConfigVersion,
+        timestamp = os_time(),
+        gameId = game.PlaceId,
+        settings = Settings
+    }
+    
+    -- Encrypt and save config
+    local success, result = pcall(function()
+        local jsonData = HttpService:JSONEncode(configData)
+        local encryptedData = Utility.Encrypt(jsonData)
+        writefile("MatrixHub/Configs/" .. configName .. ".mhconf", encryptedData)
+        return true
     end)
     
-    UserInputService.InputBegan:Connect(function(input)
-        if binding and input.UserInputType == Enum.UserInputType.Keyboard then
-            binding = false
-            key = input.KeyCode
-            keyButton.Text = input.KeyCode.Name
-            callback(input.KeyCode)
+    return success
+end)
+
+ConfigSystem.LoadConfig = secureConfig(function(configName)
+    configName = configName or Settings.Config.DefaultConfig
+    local configPath = "MatrixHub/Configs/" .. configName .. ".mhconf"
+    
+    if not isfile(configPath) then
+        return false, "Config file not found"
+    end
+    
+    local success, result = pcall(function()
+        local encryptedData = readfile(configPath)
+        local jsonData = Utility.Decrypt(encryptedData)
+        local configData = HttpService:JSONDecode(jsonData)
+        
+        -- Version check
+        if configData.version ~= Settings.Config.ConfigVersion then
+            return false, "Config version mismatch"
+        end
+        
+        -- Update settings
+        Settings = configData.settings
+        return true
+    end)
+    
+    return success, result
+end)
+
+ConfigSystem.GetConfigList = secureConfig(function()
+    if not isfolder("MatrixHub/Configs") then
+        return {}
+    end
+    
+    local files = listfiles("MatrixHub/Configs")
+    local configs = {}
+    
+    for _, file in ipairs(files) do
+        local fileName = string.match(file, "([^/\\]+)%.mhconf$")
+        if fileName then
+            table_insert(configs, fileName)
+        end
+    end
+    
+    return configs
+end)
+
+ConfigSystem.DeleteConfig = secureConfig(function(configName)
+    local configPath = "MatrixHub/Configs/" .. configName .. ".mhconf"
+    
+    if not isfile(configPath) then
+        return false, "Config file not found"
+    end
+    
+    local success, result = pcall(function()
+        delfile(configPath)
+        return true
+    end)
+    
+    return success, result
+end)
+
+--//================ UI SYSTEM ================\\--
+local UI = {}
+
+UI.CreateNew = secureUI(function()
+    local MatrixUI = {}
+    
+    -- ScreenGui Creation
+    local MatrixHub = Instance_new("ScreenGui")
+    MatrixHub.Name = "MatrixHubV3"
+    MatrixHub.ResetOnSpawn = false
+    MatrixHub.DisplayOrder = 9999
+    MatrixHub.ZIndexBehavior = Enum_ZIndexBehavior.Sibling
+    
+    -- Try to use CoreGui for better hiding from anti-cheats
+    pcall(function()
+        syn = syn or getgenv().syn
+        if syn and syn.protect_gui then
+            syn.protect_gui(MatrixHub)
+            MatrixHub.Parent = game:GetService("CoreGui")
+        elseif get_hidden_gui then
+            MatrixHub.Parent = get_hidden_gui()
+        elseif gethui then
+            MatrixHub.Parent = gethui()
+        else
+            MatrixHub.Parent = game:GetService("CoreGui")
         end
     end)
     
-    return container, posY + 35, key
-end
-
---// POPULATE TABS WITH SETTINGS \\--
-
--- Aimbot Tab
-local aimbotY = 10
-aimbotY = select(2, CreateToggle(TabFrames["Aimbot"], "Enable Aimbot", aimbotY, Settings.AimbotEnabled, function(value)
-    Settings.AimbotEnabled = value
-end))
-
-aimbotY = select(2, CreateKeybind(TabFrames["Aimbot"], "Aimbot Key", aimbotY, Settings.AimbotKey, function(key)
-    Settings.AimbotKey = key
-end))
-
-aimbotY = select(2, CreateSlider(TabFrames["Aimbot"], "Aimbot Smoothing", aimbotY, 1, 10, Settings.AimbotSmoothing, function(value)
-    Settings.AimbotSmoothing = value
-end))
-
-aimbotY = select(2, CreateSlider(TabFrames["Aimbot"], "Aimbot FOV", aimbotY, 50, 500, Settings.AimbotFOV, function(value)
-    Settings.AimbotFOV = value
-end))
-
-aimbotY = select(2, CreateToggle(TabFrames["Aimbot"], "Team Check", aimbotY, Settings.AimbotTeamCheck, function(value)
-    Settings.AimbotTeamCheck = value
-end))
-
-aimbotY = select(2, CreateToggle(TabFrames["Aimbot"], "Visibility Check", aimbotY, Settings.AimbotVisibilityCheck, function(value)
-    Settings.AimbotVisibilityCheck = value
-end))
-
-aimbotY = select(2, CreateDropdown(TabFrames["Aimbot"], "Target Part", aimbotY, {"Head", "HumanoidRootPart", "Torso"}, Settings.AimbotTargetPart, function(value)
-    Settings.AimbotTargetPart = value
-end))
-
--- FOV Circle
-local AimbotFOVCircle = Drawing.new("Circle")
-AimbotFOVCircle.Thickness = 1
-AimbotFOVCircle.Color = Color3.fromRGB(255, 0, 0)
-AimbotFOVCircle.Filled = false
-AimbotFOVCircle.Transparency = 0.5
-AimbotFOVCircle.Visible = false
-
--- Silent Aim Tab
-local silentY = 10
-silentY = select(2, CreateToggle(TabFrames["Silent Aim"], "Enable Silent Aim", silentY, Settings.SilentAimEnabled, function(value)
-    Settings.SilentAimEnabled = value
-end))
-
-silentY = select(2, CreateToggle(TabFrames["Silent Aim"], "Blatant Mode (100% Accuracy)", silentY, Settings.SilentAimBlatant, function(value)
-    Settings.SilentAimBlatant = value
-end))
-
-silentY = select(2, CreateSlider(TabFrames["Silent Aim"], "FOV Size", silentY, 50, 500, Settings.SilentAimFOV, function(value)
-    Settings.SilentAimFOV = value
-end))
-
-silentY = select(2, CreateSlider(TabFrames["Silent Aim"], "Hit Chance %", silentY, 10, 100, Settings.SilentAimHitChance, function(value)
-    Settings.SilentAimHitChance = value
-end))
-
-silentY = select(2, CreateToggle(TabFrames["Silent Aim"], "Team Check", silentY, Settings.SilentAimTeamCheck, function(value)
-    Settings.SilentAimTeamCheck = value
-end))
-
-silentY = select(2, CreateDropdown(TabFrames["Silent Aim"], "Target Part", silentY, {"Head", "HumanoidRootPart", "Torso"}, Settings.SilentAimTargetPart, function(value)
-    Settings.SilentAimTargetPart = value
-end))
-
--- FOV Circle
-local SilentAimFOVCircle = Drawing.new("Circle")
-SilentAimFOVCircle.Thickness = 1
-SilentAimFOVCircle.Color = Color3.fromRGB(0, 255, 0)
-SilentAimFOVCircle.Filled = false
-SilentAimFOVCircle.Transparency = 0.5
-SilentAimFOVCircle.Visible = false
-
--- Trigger Bot Section
-silentY = select(2, CreateLabel(TabFrames["Silent Aim"], "Trigger Bot Settings", silentY + 10))
-
-silentY = select(2, CreateToggle(TabFrames["Silent Aim"], "Enable Trigger Bot", silentY, Settings.TriggerBotEnabled, function(value)
-    Settings.TriggerBotEnabled = value
-end))
-
-silentY = select(2, CreateKeybind(TabFrames["Silent Aim"], "Trigger Bot Key", silentY, Settings.TriggerBotKey, function(key)
-    Settings.TriggerBotKey = key
-end))
-
-silentY = select(2, CreateSlider(TabFrames["Silent Aim"], "Trigger Delay (ms)", silentY, 0, 500, Settings.TriggerBotDelay, function(value)
-    Settings.TriggerBotDelay = value
-end))
-
-silentY = select(2, CreateToggle(TabFrames["Silent Aim"], "Hold Key Mode", silentY, Settings.TriggerBotHoldMode, function(value)
-    Settings.TriggerBotHoldMode = value
-end))
-
--- Character Tab
-local characterY = 10
-characterY = select(2, CreateToggle(TabFrames["Character"], "Enable Speed Hack", characterY, Settings.SpeedEnabled, function(value)
-    Settings.SpeedEnabled = value
-end))
-
-characterY = select(2, CreateSlider(TabFrames["Character"], "Speed Amount", characterY, 1, 10, Settings.SpeedAmount, function(value)
-    Settings.SpeedAmount = value
-end))
-
-characterY = select(2, CreateDropdown(TabFrames["Character"], "Speed Method", characterY, {"CFrame", "Walkspeed"}, Settings.SpeedMethod, function(value)
-    Settings.SpeedMethod = value
-end))
-
-characterY = select(2, CreateToggle(TabFrames["Character"], "Enable Jump Power", characterY, Settings.JumpPowerEnabled, function(value)
-    Settings.JumpPowerEnabled = value
-end))
-
-characterY = select(2, CreateSlider(TabFrames["Character"], "Jump Power Amount", characterY, 50, 250, Settings.JumpPowerAmount, function(value)
-    Settings.JumpPowerAmount = value
-end))
-
-characterY = select(2, CreateToggle(TabFrames["Character"], "Enable Noclip", characterY, Settings.NoClipEnabled, function(value)
-    Settings.NoClipEnabled = value
-end))
-
-characterY = select(2, CreateToggle(TabFrames["Character"], "Enable Infinite Jump", characterY, Settings.InfiniteJumpEnabled, function(value)
-    Settings.InfiniteJumpEnabled = value
-end))
-
--- ESP Tab
-local espY = 10
-espY = select(2, CreateToggle(TabFrames["ESP"], "Enable ESP", espY, Settings.ESPEnabled, function(value)
-    Settings.ESPEnabled = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Show Boxes", espY, Settings.ESPBoxes, function(value)
-    Settings.ESPBoxes = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Show Names", espY, Settings.ESPNames, function(value)
-    Settings.ESPNames = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Show Tracers", espY, Settings.ESPTracer, function(value)
-    Settings.ESPTracer = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Use Team Colors", espY, Settings.ESPTeamColors, function(value)
-    Settings.ESPTeamColors = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Team Check", espY, Settings.ESPTeamCheck, function(value)
-    Settings.ESPTeamCheck = value
-end))
-
-espY = select(2, CreateToggle(TabFrames["ESP"], "Show Distance", espY, Settings.ESPDistance, function(value)
-    Settings.ESPDistance = value
-end))
-
--- Misc Tab
-local miscY = 10
-miscY = select(2, CreateToggle(TabFrames["Misc"], "No Recoil", miscY, Settings.NoRecoilEnabled, function(value)
-    Settings.NoRecoilEnabled = value
-end))
-
-miscY = select(2, CreateToggle(TabFrames["Misc"], "No Spread", miscY, Settings.NoSpreadEnabled, function(value)
-    Settings.NoSpreadEnabled = value
-end))
-
-miscY = select(2, CreateToggle(TabFrames["Misc"], "Auto Heal", miscY, Settings.AutoHealEnabled, function(value)
-    Settings.AutoHealEnabled = value
-end))
-
-miscY = select(2, CreateToggle(TabFrames["Misc"], "Auto Reload", miscY, Settings.AutoReloadEnabled, function(value)
-    Settings.AutoReloadEnabled = value
-end))
-
--- Config Tab (Complete the missing part)
-local configY = 10
-configY = select(2, CreateLabel(TabFrames["Config"], "Config Settings", configY))
+    -- Fallback to PlayerGui if CoreGui fails
+    if not MatrixHub.Parent then
+        MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+    
+    -- Main Components
+    local MainFrame = Instance_new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2_new(0, 650, 0, 450)
+    MainFrame.Position = UDim2_new(0.5, -325, 0.5, -225)
+    MainFrame.BackgroundColor3 = Settings.UI.Theme.Primary
+    MainFrame.BorderSizePixel = 0
+    MainFrame.ClipsDescendants = true
+    MainFrame.Active = true
+    MainFrame.Draggable = Settings.UI.Draggable
+    MainFrame.Parent = MatrixHub
+    
+    -- Add a subtle 1px border around the main frame
+    local MainBorder = Instance_new("Frame")
+    MainBorder.Name = "MainBorder"
+    MainBorder.Size = UDim2_new(1, 2, 1, 2)
+    MainBorder.Position = UDim2_new(0, -1, 0, -1)
+    MainBorder.BackgroundColor3 = Settings.UI.Theme.Accent
+    MainBorder.BorderSizePixel = 0
+    MainBorder.ZIndex = 0
+    MainBorder.Parent = MainFrame
+    
+    -- Title Bar (C++ style)
+    local TitleBar = Instance_new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Size = UDim2_new(1, 0, 0, 30)
+    TitleBar.Position = UDim2_new(0, 0, 0, 0)
+    TitleBar.BackgroundColor3 = Settings.UI.Theme.Secondary
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Parent = MainFrame
+    
+    -- Title Bar Bottom Accent Line
+    local TitleBarAccent = Instance_new("Frame")
+    TitleBarAccent.Name = "TitleBarAccent"
+    TitleBarAccent.Size = UDim2_new(1, 0, 0, 1)
+    TitleBarAccent.Position = UDim2_new(0, 0, 1, 0)
+    TitleBarAccent.BackgroundColor3 = Settings.UI.Theme.Accent
+    TitleBarAccent.BorderSizePixel = 0
+    TitleBarAccent.Parent = TitleBar
+    
+    -- Title
+    local TitleText = Instance_new("TextLabel")
+    TitleText.Name = "TitleText"
+    TitleText.Size = UDim2_new(0, 200, 1, -2)
+    TitleText.Position = UDim2_new(0, 10, 0, 0)
+    TitleText.BackgroundTransparency = 1
+    TitleText.Text = "MATRIXHUB V3"
+    TitleText.TextColor3 = Settings.UI.Theme.Accent
+    TitleText.Font = Settings.UI.Font
+    TitleText.TextSize = Settings.UI.FontSize.Title
+    TitleText.TextXAlignment = Enum_TextXAlignment.Left
+    TitleText.Parent = TitleBar
+    
+    -- Subtitle / Version
+    local SubtitleText = Instance_new("TextLabel")
+    SubtitleText.Name = "SubtitleText"
+    SubtitleText.Size = UDim2_new(0, 300, 1, -2)
+    SubtitleText
