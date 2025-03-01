@@ -15,7 +15,12 @@ local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
-local Stats = game:GetService("Stats") -- Added Stats service reference
+
+-- Add Stats service with error handling
+local Stats = nil
+pcall(function() 
+    Stats = game:GetService("Stats")
+end)
 
 -- Player References
 local LocalPlayer = Players.LocalPlayer
@@ -330,8 +335,15 @@ Utility.StartPerformanceMonitoring = function()
         if elapsed >= 1 then
             memory.cache.performanceStats.fps = math_floor(frameCount / elapsed)
             memory.cache.performanceStats.ping = LocalPlayer:GetNetworkPing() * 1000
-            -- Fixed the Stats call that was causing the nil error
-            memory.cache.performanceStats.memoryUsage = math_floor(Stats:GetTotalMemoryUsageInMB())
+            
+            -- Fixed Stats service usage with error handling
+            if Stats then
+                pcall(function()
+                    memory.cache.performanceStats.memoryUsage = math_floor(Stats:GetTotalMemoryUsageInMB())
+                end)
+            else
+                memory.cache.performanceStats.memoryUsage = 0
+            end
             
             frameCount = 0
             lastUpdate = currentTime
@@ -746,26 +758,61 @@ local UI = {}
 UI.CreateNew = secureUI(function()
     local MatrixUI = {}
     
-    -- ScreenGui Creation
+    -- ScreenGui Creation with Nezur compatibility
     local MatrixHub = Instance_new("ScreenGui")
     MatrixHub.Name = "MatrixHubV3_" .. HttpService:GenerateGUID(false):sub(1, 8)  -- Randomize name for security
     MatrixHub.ResetOnSpawn = false
     MatrixHub.DisplayOrder = 9999
     MatrixHub.ZIndexBehavior = Enum_ZIndexBehavior.Sibling
     
-    -- Try to use CoreGui for better hiding from anti-cheats
-    local success = pcall(function()
-        -- Compatibility for Nezur executor
-        if game:GetService("CoreGui") then
+    -- Safely set parent with multiple fallback options for Nezur compatibility
+    local success = false
+    
+    -- Try methods in order of preference
+    local parentMethods = {
+        function()
+            -- Method 1: Standard CoreGui approach
+            if syn and syn.protect_gui then
+                syn.protect_gui(MatrixHub)
+                MatrixHub.Parent = game:GetService("CoreGui")
+                return true
+            end
+            return false
+        end,
+        
+        function()
+            -- Method 2: Direct CoreGui parent
             MatrixHub.Parent = game:GetService("CoreGui")
             return true
+        end,
+        
+        function() 
+            -- Method 3: gethui() method
+            if gethui then
+                MatrixHub.Parent = gethui()
+                return true
+            end
+            return false
+        end,
+        
+        function()
+            -- Method 4: PlayerGui (last resort)
+            MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            return true
         end
-        return false
-    end)
+    }
     
-    -- Fallback to PlayerGui if CoreGui fails
+    -- Try each method until one succeeds
+    for _, method in ipairs(parentMethods) do
+        success = pcall(method)
+        if success then
+            break
+        end
+    end
+    
     if not success then
-        MatrixHub.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        warn("[MatrixHub] Failed to create UI - could not set ScreenGui parent")
+        return nil
     end
     
     -- Main Components
@@ -790,31 +837,4 @@ UI.CreateNew = secureUI(function()
             startPos.X.Scale,
             startPos.X.Offset + delta.X,
             startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-    
-    MainFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and Settings.UI.Draggable then
-            dragging = true
-            dragStart = input.Position
-            startPos = MainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-            updateDrag(input)
-        end
-    end)
-    
-    -- Add a subtle 1px border around the main frame
-    local MainBorder = Instance_new("Frame")
-    MainBorder.Name = "MainBorder"
-    MainBorder.Size = UDim2_new(1, 2, 1, 2)
-    MainBorder.Position = UDim2_new(0, -1,
+            startPos.Y.Offset +
